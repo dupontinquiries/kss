@@ -21,85 +21,7 @@ def get_length(filename):
   result = subprocess.Popen(["ffprobe", filename], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
   return [x for x in result.stdout.readlines() if "Duration" in x]
 
-def trim_silent(a, b):
-    tmp_name = vid_arr[b]
-    print(str(get_length(tmp_name)))
-    c = get_chunk_times(tmp_name, 24, 7, 0, get_length(tmp_name))
-    print('chunks = ' + str(c))
-    return a
-
-def _logged_popen(cmd_line, *args, **kwargs):
-    logger.debug('Running command: {}'.format(subprocess.list2cmdline(cmd_line)))
-    return subprocess.Popen(cmd_line, *args, **kwargs)
-
-def get_chunk_times(in_filename, silence_threshold, silence_duration, start_time=None, end_time=None):
-    input_kwargs = {}
-    if start_time is not None:
-        input_kwargs['ss'] = start_time
-    else:
-        start_time = 0.
-    if end_time is not None:
-        input_kwargs['t'] = end_time - start_time
-
-    p = _logged_popen(
-        (ffmpeg
-            .input(in_filename, **input_kwargs)
-            .filter('silencedetect', n='{}dB'.format(silence_threshold), d=silence_duration)
-            .output('-', format='null')
-            .compile()
-        ) + ['-nostats'],  # FIXME: use .nostats() once it's implemented in ffmpeg-python.
-        stderr=subprocess.PIPE
-    )
-    output = p.communicate()[1].decode('utf-8')
-    if p.returncode != 0:
-        sys.stderr.write(output)
-        sys.exit(1)
-    logger.debug(output)
-    lines = output.splitlines()
-
-    # Chunks start when silence ends, and chunks end when silence starts.
-    chunk_starts = []
-    chunk_ends = []
-    for line in lines:
-        silence_start_match = silence_start_re.search(line)
-        silence_end_match = silence_end_re.search(line)
-        total_duration_match = total_duration_re.search(line)
-        if silence_start_match:
-            chunk_ends.append(float(silence_start_match.group('start')))
-            if len(chunk_starts) == 0:
-                # Started with non-silence.
-                chunk_starts.append(start_time or 0.)
-        elif silence_end_match:
-            chunk_starts.append(float(silence_end_match.group('end')))
-        elif total_duration_match:
-            hours = int(total_duration_match.group('hours'))
-            minutes = int(total_duration_match.group('minutes'))
-            seconds = float(total_duration_match.group('seconds'))
-            end_time = hours * 3600 + minutes * 60 + seconds
-
-    if len(chunk_starts) == 0:
-        # No silence found.
-        chunk_starts.append(start_time)
-
-    if len(chunk_starts) > len(chunk_ends):
-        # Finished with non-silence.
-        chunk_ends.append(end_time or 10000000.)
-
-    print('chunk_starts = ' + str(chunk_starts))
-
-    return list(zip(chunk_starts, chunk_ends))
-
 #start of code
-
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger(__file__)
-logger.setLevel(logging.INFO)
-
-silence_start_re = re.compile(' silence_start: (?P<start>[0-9]+(\.?[0-9]*))$')
-silence_end_re = re.compile(' silence_end: (?P<end>[0-9]+(\.?[0-9]*)) ')
-total_duration_re = re.compile(
-    'size=[^ ]+ time=(?P<hours>[0-9]{2}):(?P<minutes>[0-9]{2}):(?P<seconds>[0-9\.]{5}) bitrate=')
-
 def process(i):
     #
     input = ffmpeg.input(i)
@@ -126,7 +48,9 @@ def process(i):
 
 
 print(str(ffmpeg) + " is running")
-dir = "C:\\Users\\bluuc\\Desktop\\Code 2019\\Eclipse\\Test2\\footage"
+
+dir = "C:\\Users\\bluuc\\Desktop\\Code 2019\\Eclipse\\KitchenSplitSilence\\footage"
+print("root: " + str(dir))
 os.chdir(dir)
 vid_arr = create_video_list(dir)
 print("list: " + str(vid_arr) + "")
