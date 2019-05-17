@@ -34,19 +34,20 @@ def process(i):
     og_name = i
     i = str(i.replace(".mp4", ""))
     a = input['a']
+    a = a.filter('highpass', 50).filter("lowpass", 18000).filter("loudnorm")
     v = input['v']
     output = ffmpeg.output(a, "tmp_a_from_" + i + ".wav")
     ffmpeg.run(output)
     a = AudioSegment.from_wav("tmp_a_from_" + i + ".wav")
     if os.path.exists("tmp_a_from_" + i + ".wav"):
         os.remove("tmp_a_from_" + i + ".wav")
-    chunk_length_ms = 500  # 5000 is best, but one and 250 are also good
+    chunk_length_ms = 400  # 5000 is best, but one and 250 are also good
     chunk_length_s = chunk_length_ms/1000  # 5000 is best, but one and 250 are also good
     chunks_a = make_chunks(a, chunk_length_ms)
     tc_v = []
     for x in range(0, len(chunks_a) - 1):
         raw = chunks_a[x].dBFS
-        if raw > -30:  # -12 is best
+        if raw > -27:
             print("subclips: " + str(tc_v))
             tc_v.append(movie.subclip((x * chunk_length_s), (x * chunk_length_s + chunk_length_s)))
             print("vol = " + str(raw))
@@ -55,13 +56,14 @@ def process(i):
     # output = ffmpeg.output(base['v'], base['a'], "processed_output_from_" + i + ".mp4")
     # ffmpeg.run(output)
     processed = concatenate(tc_v)
+    print("concat: " + str(processed))
     processed.write_videofile("processed_output_from_" + i + ".mp4")
     if not processed:
         processed = ffmpeg.output([], [], "processed_output_from_" + i + ".mp4")
         ffmpeg.run(processed)
     ret = ffmpeg.input("processed_output_from_" + i + ".mp4")
-    if os.path.exists("processed_output_from_" + i + ".mp4"):
-        os.remove("processed_output_from_" + i + ".mp4")
+    #if os.path.exists("processed_output_from_" + i + ".mp4"):
+        #os.remove("processed_output_from_" + i + ".mp4")
     return ret
 
 
@@ -86,7 +88,7 @@ for w in range(1, len(vid_arr) - 1):
     base = base.node
     base_v = base['v']
     base_a = base['a']
-base_a = base_a.filter('highpass', 50).filter("lowpass", 18000).filter("loudnorm").filter("acompressor")
+#base_a = base_a.filter('highpass', 50).filter("lowpass", 18000).filter("loudnorm").filter("acompressor")
 # https://ffmpeg.org/ffmpeg-filters.html#toc-acompressor
 #
 # https://ffmpeg.org/ffmpeg-filters.html#silencedetect
