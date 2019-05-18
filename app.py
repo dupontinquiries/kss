@@ -34,20 +34,31 @@ def process(i):
     og_name = i
     i = str(i.replace(".mp4", ""))
     a = input['a']
-    a = a.filter('highpass', 50).filter("lowpass", 18000).filter("loudnorm")
+    a = a.filter('highpass', 150).filter("lowpass", 16000).filter("loudnorm")
     v = input['v']
     output = ffmpeg.output(a, "tmp_a_from_" + i + ".wav")
     ffmpeg.run(output)
     a = AudioSegment.from_wav("tmp_a_from_" + i + ".wav")
     if os.path.exists("tmp_a_from_" + i + ".wav"):
         os.remove("tmp_a_from_" + i + ".wav")
-    chunk_length_ms = 400  # 5000 is best, but one and 250 are also good
-    chunk_length_s = chunk_length_ms/1000  # 5000 is best, but one and 250 are also good
+    chunk_length_ms = 2000  # 4000 is best
+    chunk_length_s = chunk_length_ms/1000
     chunks_a = make_chunks(a, chunk_length_ms)
     tc_v = []
+
+    list_of_db = []
+    for z in range(0, len(chunks_a) - 1):
+        db = chunks_a[z].dBFS
+        list_of_db.append(db)
+
+    max_db = max(list_of_db)
+    thresh = 1.5 * max_db
+    print("max_db: " + str(max_db))
+    print("thresh: " + str(thresh))
+
     for x in range(0, len(chunks_a) - 1):
-        raw = chunks_a[x].dBFS
-        if raw > -27:
+        raw = list_of_db[x]
+        if raw > thresh: # -27 works best, -36
             print("subclips: " + str(tc_v))
             tc_v.append(movie.subclip((x * chunk_length_s), (x * chunk_length_s + chunk_length_s)))
             print("vol = " + str(raw))
@@ -57,11 +68,11 @@ def process(i):
     # ffmpeg.run(output)
     processed = concatenate(tc_v)
     print("concat: " + str(processed))
-    processed.write_videofile("processed_output_from_" + i + ".mp4")
+    processed.write_videofile("final\\processed_output_from_" + i + ".mp4")
     if not processed:
-        processed = ffmpeg.output([], [], "processed_output_from_" + i + ".mp4")
+        processed = ffmpeg.output([], [], "final\\processed_output_from_" + i + ".mp4")
         ffmpeg.run(processed)
-    ret = ffmpeg.input("processed_output_from_" + i + ".mp4")
+    ret = ffmpeg.input("final\\processed_output_from_" + i + ".mp4")
     #if os.path.exists("processed_output_from_" + i + ".mp4"):
         #os.remove("processed_output_from_" + i + ".mp4")
     return ret
@@ -73,6 +84,7 @@ dir = "C:\\Users\\bluuc\\Desktop\\Code 2019\\Eclipse\\KitchenSplitSilence\\foota
 print("root: " + str(dir))
 os.chdir(dir)
 vid_arr = create_video_list(dir)
+vid_arr.sort(key=lambda x: os.path.getmtime(x))
 print("list: " + str(vid_arr) + "")
 #base = ffmpeg.input(vid_arr[0])
 base = process(vid_arr[0])
@@ -88,11 +100,11 @@ for w in range(1, len(vid_arr) - 1):
     base = base.node
     base_v = base['v']
     base_a = base['a']
-#base_a = base_a.filter('highpass', 50).filter("lowpass", 18000).filter("loudnorm").filter("acompressor")
+base_a = base_a.filter("loudnorm").filter("acompressor")
 # https://ffmpeg.org/ffmpeg-filters.html#toc-acompressor
 #
 # https://ffmpeg.org/ffmpeg-filters.html#silencedetect
-out = ffmpeg.output(base_v, base_a, "output_from_" + "all_clips" + ".mp4")
+out = ffmpeg.output(base_v, base_a, "final\\output_from_" + "all_clips" + ".mp4")
 ffmpeg.run(out)
 print("done")
 # to fix len issue? https://stackoverflow.com/questions/19182188/how-to-find-the-length-of-a-filter-object-in-python
