@@ -7,6 +7,7 @@ from pydub.utils import make_chunks
 from moviepy.editor import *
 from math import *
 from os.path import dirname, abspath
+import statistics
 
 
 #functions
@@ -90,7 +91,8 @@ def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop
         list_of_db_solo.append(chunks_a_voice[z_end].dBFS)
         print(str(z_end) + " run " + "end")
     max_db = max(list_of_db_solo)
-    thresh = mod * max_db
+    median_db = statistics.median(list_of_db)
+    thresh = mod * median_db
     print("max_db: " + str(max_db))
     print("thresh: " + str(thresh))
     fps = movie.fps
@@ -117,7 +119,10 @@ def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop
     desired_height = crop_h
     movie_width = movie.w
     desired_width = crop_w
-    scale_factor = max(movie_height / desired_height, movie_width / desired_width)
+    scale_factor = max((movie_height / desired_height), (movie_width / desired_width))
+    print("scale factor")
+    print("scale factor = " + scale_factor)
+    print("scale factor")
     base_a = ret['a'].filter("loudnorm").filter("acompressor")  # .filter("dynaudnorm")
     ffmpeg.run(ffmpeg.output(base_a, "final\\processed_audio_from" + i + ".mp3"))
     new_audio = (ffmpeg.input("final\\processed_audio_from" + i + ".mp3"))
@@ -125,11 +130,7 @@ def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop
     output = ffmpeg.output(base_v, new_audio, "final\\filtered_and_processed_output_from_" + i + ".mp4")
     ffmpeg.run(output)
     ret = ffmpeg.input("final\\filtered_and_processed_output_from_" + i + ".mp4")
-
-
     #if os.path.exists("final\\processed_output_from_" + i + ".mp4"): os.remove("final\\processed_output_from_" + i + ".mp4") if os.path.exists("final\\filtered_and_processed_output_from_" + i + ".mp4"): os.remove("final\\filtered_and_processed_output_from_" + i + ".mp4")
-
-
     return ret
 
 
@@ -183,6 +184,7 @@ def process(i):
         list_of_db.append(db)
 
     max_db = max(list_of_db)
+
     thresh = 1.18 * max_db
     print("max_db: " + str(max_db))
     print("thresh: " + str(thresh))
@@ -224,13 +226,13 @@ vid_arr = create_video_list(dir)
 vid_arr.sort(key=lambda x: os.path.getmtime(x))
 print("list: " + str(vid_arr) + "")
 #base = ffmpeg.input(vid_arr[0])
-base = process_in_groups(vid_arr[0], 1.5, 400, 6, 1.25, 1920, 1080)
+base = process_in_groups(vid_arr[0], 0.9, 400, 6, 1.35, 1080, 1350)
 base_v = base['v']
 base_a = base['a']
 if(len(vid_arr) > 1):
     for w in range(1, len(vid_arr) - 1):
         # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
-        to_concat = process_in_groups(vid_arr[w], 1.5, 400, 6, 1.25, 1920, 1080) #1.4, 15000, 5 is pretty good with about 50% retention and near full comprehensibility
+        to_concat = process_in_groups(vid_arr[w], 0.9, 400, 6, 1.35, 1080, 1350) #1.4, 15000, 5 is pretty good with about 50% retention and near full comprehensibility
         to_concat_v = to_concat['v']
         to_concat_a = to_concat['a']
         print("n = " + str(w))
