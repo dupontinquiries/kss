@@ -72,31 +72,29 @@ def read_creation_date():
 def formulate_timestamp(chunk_file_path, max_chunk_size, chunk_count_predecessors):
     return 0
 
-def chunk_file(file_name, chunk_folder_path, max_chunk_size, file_suffix ='', extention='.mp3'):
-    if file_suffix == '':
+def chunk_file(file_name, max_chunk_size = 10, file_suffix = "default", extention= ".mp3"):
+    if file_suffix == "default":
         file_suffix = file_name
     pipe = read_audio_data(file_name)
-    i = 0
-    while True:
-        i += 1
-        audio_data, raw_audio_data, error = get_audio_array(pipe,5)
-        if error is not None:
-            print(error)
-            return
-
-        chunk_file_path = 'k_chunk_n='  + str(i)+ '_from_' + file_suffix + extention
+    clip = VideoFileClip(file_name)
+    vl = clip.duration
+    i_2 = ceil((vl/60)/(max_chunk_size*1))
+    for i in range(0, i_2 - 1):
+        start = i * max_chunk_size * 60
+        end = min(vl / 60, i * max_chunk_size + 1) * 60
+        chunk_file_path = 'k_chunk_n=' + str(i) + '_from_' + file_suffix + extention
         chunked_clips.append(chunk_file_path)
-        chunked_timestamps.append(formulate_timestamp(chunk_file_path, max_chunk_size, i))
-        print('writing file ' + chunk_file_path)
-        write_audio_file(chunk_file_path, raw_audio_data)
+        chunked_timestamps.append([file_name, start, end])
+        clip.subclip(start, end).write_videofile(chunk_file_path)
+        print('wrote file ' + chunk_file_path)
 
-def chunk_folder(folder_name, max_chunk_size):
+def chunk_folder(max_chunk_size = 5, folder_name = ""):
     '''
     so basically go through all files in folder
     turn each file into a bunch of files of length max_chunk_size(given in minutes)
     '''
-    for name in os.listdir(dir):
-        if name.endswith(".mp4") and "k_chunk" not in name:
+    for name in os.listdir(dir + folder_name):
+        if name.endswith(".mp4") and str("k_chunk_n=") not in name:
             chunk_file(name, max_chunk_size)
 
 # double filter process
@@ -221,72 +219,6 @@ def get_length(filename):
   result = subprocess.Popen(["ffprobe", filename], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
   return [x for x in result.stdout.readlines() if "Duration" in x]
 
-#first function! essentially -ss of ffmpeg but through moviepy
-def process(i):
-    #
-    input = ffmpeg.input(i)
-    movie = VideoFileClip(i)
-    og_name = i
-    i = str(i.replace(".mp4", ""))
-    a = input['a']
-    a_voice = a.filter('highpass', 300).filter("lowpass", 10000).filter("loudnorm")
-    a = a.filter('highpass', 400).filter("lowpass", 15000).filter("loudnorm")
-    v = input['v']
-    output = ffmpeg.output(a, "tmp_a_from_" + i + ".mp3")
-    ffmpeg.run(output)
-    output = ffmpeg.output(a, "tmp_voice_opt_from_" + i + ".mp3")
-    ffmpeg.run(output)
-    a = AudioSegment.from_mp3("tmp_a_from_" + i + ".mp3")
-    if os.path.exists("tmp_a_from_" + i + ".mp3"):
-        os.remove("tmp_a_from_" + i + ".mp3")
-    a_voices = AudioSegment.from_mp3("tmp_voice_opt_from_" + i + ".mp3")
-    if os.path.exists("tmp_voice_opt_from_" + i + ".mp3"):
-        os.remove("tmp_voice_opt_from_" + i + ".mp3")
-    chunk_length_ms = 2500  # 4000 is best
-    chunk_length_s = chunk_length_ms/1000
-    chunks_a = make_chunks(a, chunk_length_ms)
-    chunks_a_voice = make_chunks(a, chunk_length_ms)
-    tc_v = []
-
-    list_of_db = []
-    for z in range(0, len(chunks_a) - 1):
-        db = chunks_a_voice[z].dBFS
-        list_of_db.append(db)
-
-    max_db = max(list_of_db)
-    thresh = 1.18 * max_db
-    print("max_db: " + str(max_db))
-    print("thresh: " + str(thresh))
-    if len(chunks_a) > 1:
-        for x in range(0, len(chunks_a) - 1):
-            raw = list_of_db[x]
-            if raw > thresh: # -27 works best, -36
-                print("subclips: " + str(tc_v))
-                tc_v.append(movie.subclip((x * chunk_length_s), (x * chunk_length_s + chunk_length_s)))
-                print("vol = " + str(raw))
-                # base = ffmpeg.concat(base_v, base_a, chunks_a[x], tc_v, v=1, a=1)
-                # print(str(tc_v))
-    # output = ffmpeg.output(base['v'], base['a'], "processed_output_from_" + i + ".mp4")
-    # ffmpeg.run(output)
-    processed = concatenate(tc_v)
-    print("concat: " + str(processed))
-    processed.write_videofile("final\\processed_output_from_" + i + ".mp4")
-    ret = ffmpeg.input("final\\processed_output_from_" + i + ".mp4")
-    movie_width = movie.width
-    movie_height = movie.height
-    desired_height = 1350
-    scale_factor = movie_height/desired_height
-    base_a = ret['a'].filter("loudnorm").filter("acompressor")  # .filter("dynaudnorm")
-    base_v = ret['v'].filter("atadenoise").filter('scale', w=(str(movie_width*scale_factor)),
-                                                  h=(str(movie_height*scale_factor))).filter('crop', w='1080', h='1350')
-    ffmpeg.run(base_v, base_a, "final\\filtered_and_processed_output_from_" + i + ".mp4")
-    ret = ffmpeg.input("final\\filtered_and_processed_output_from_" + i + ".mp4")
-    #if os.path.exists("processed_output_from_" + i + ".mp4"):
-        #os.remove("processed_output_from_" + i + ".mp4")
-    return ret
-
-
-
 print(str(ffmpeg) + " is running")
 print("root: " + str(dir))
 os.chdir(dir)
@@ -295,7 +227,9 @@ vid_arr.sort(key=lambda x: os.path.getmtime(x))
 print("list: " + str(vid_arr) + "")
 #base = ffmpeg.input(vid_arr[0])
 chunked_clips = []
-chunk_vid(vid_arr[0], .7)
+chunk_folder()
+# file_name, max_chunk_size = 10, file_suffix = "default", extention= ".mp3"
+chunk_file(vid_arr[0], 10)
 sss = ffmpeg.input(chunked_clips[0])
 base = process_in_groups(sss, 1.25, 1200, 3)
 base_v = base['v']
@@ -314,7 +248,7 @@ if (len(vid_arr) > 1):
     for w in range(1, len(vid_arr) - 1):
         # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         chunked_clips = []
-        chunk_vid(w, 10)
+        chunk_file(w, 10)
         for c_w in range(len(chunked_clips) - 1):
             sss = ffmpeg.input(chunked_clips[c_w])
             to_concat = process_in_groups(sss, 1.25, 1200, 3) #1.4, 15000, 5
