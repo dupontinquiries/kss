@@ -8,7 +8,10 @@ from moviepy.editor import *
 from math import *
 from os.path import dirname, abspath
 import statistics
+import exifread
+import cv2
 
+t_stamps = {}
 
 #functions
 
@@ -27,32 +30,33 @@ def get_frame_rate(filename):
     if len(rate)==2:
         return float(rate[0])/float(rate[1])
     return -1
-
+def k_remove(a):
+    if os.path.exists(a):
+        os.remove(a)
 # double filter process
 def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop_h = 1350):
-    if os.path.exists("final\\processed_output_from_" + i + ".mp4"):
-        os.remove("final\\processed_output_from_" + i + ".mp4")
-    if os.path.exists("final\\filtered_and_processed_output_from_" + i + ".mp4"):
-        os.remove("final\\filtered_and_processed_output_from_" + i + ".mp4")
+    #if os.path.exists("final\\processed_output_from_" + i + ".mp4"):
+    #    os.remove("final\\processed_output_from_" + i + ".mp4")
+    #if os.path.exists("final\\filtered_and_processed_output_from_" + i + ".mp4"):
+    #    os.remove("final\\filtered_and_processed_output_from_" + i + ".mp4")
     i = str(i.replace(".mp4", ""))
-    #
-    input = ffmpeg.input(i + ".mp4")
-    a = input['a']
-    a_voice = a.filter('highpass', 300).filter("lowpass", 10000).filter("loudnorm")
-    a = a.filter('highpass', 400).filter("lowpass", 15000).filter("loudnorm")
-    v = input['v']
-    movie = VideoFileClip(i + ".mp4")
-    output = ffmpeg.output(a, "tmp_a_from_" + i + ".mp3")
-    ffmpeg.run(output)
-    output = ffmpeg.output(a, "tmp_voice_opt_from_" + i + ".mp3")
-    ffmpeg.run(output)
+    if not os.path.exists("tmp_a_from_" + i + ".mp3"):
+        input = ffmpeg.input(i + ".mp4")
+        a = input['a']
+        a_voice = a.filter('highpass', 300).filter("lowpass", 10000).filter("loudnorm")
+        a = a.filter('highpass', 400).filter("lowpass", 15000).filter("loudnorm")
+        v = input['v']
+        movie = VideoFileClip(i + ".mp4")
+        output = ffmpeg.output(a, "tmp_a_from_" + i + ".mp3")
+        ffmpeg.run(output)
+    if not os.path.exists("tmp_voice_opt_from_" + i + ".mp3"):
+        output = ffmpeg.output(a, "tmp_voice_opt_from_" + i + ".mp3")
+        ffmpeg.run(output)
     #import the new audio
     a = AudioSegment.from_mp3("tmp_a_from_" + i + ".mp3")
-    if os.path.exists("tmp_a_from_" + i + ".mp3"):
-        os.remove("tmp_a_from_" + i + ".mp3")
+    k_remove("tmp_a_from_" + i + ".mp3")
     a_voices = AudioSegment.from_mp3("tmp_voice_opt_from_" + i + ".mp3")
-    if os.path.exists("tmp_voice_opt_from_" + i + ".mp3"):
-        os.remove("tmp_voice_opt_from_" + i + ".mp3")
+    k_remove("tmp_voice_opt_from_" + i + ".mp3")
     chunk_length_ms = c_l  # 4000 is best
     chunk_length_s = chunk_length_ms/1000
     chunks_a = make_chunks(a, chunk_length_ms)
@@ -92,7 +96,9 @@ def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop
         print(str(z_end) + " run " + "end")
     max_db = max(list_of_db_solo)
     median_db = statistics.median(list_of_db)
-    thresh = mod * median_db
+    average_db = statistics.average(list_of_db)
+    median_infl_avg_db = (.5 * median_db) + (.5 * average_db)
+    thresh = mod * median_infl_avg_db
     print("max_db: " + str(max_db))
     print("thresh: " + str(thresh))
     fps = movie.fps
@@ -139,19 +145,47 @@ def process_in_groups(i, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop
 
 # make new function that takes a song and uses the song to determine threshold at the time
 # and the cut speed is determined by the time between closest to min and closest to max point (distance) in array
+def to_mp4(name):
+    i = ffmpeg.input(name)
+    o = ffmpeg.output(i, 'file--' + name + '--.mp4')
+    ffmpeg.run(o)
+def create_timestamps(name):
+    print('fetching timestamps for ' + name)
+    cap = cv2.VideoCapture(name)
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
-def create_video_list(a):
+    timestamps_tmp = [cap.get(cv2.CAP_PROP_POS_MSEC)]
+
+    while (cap.isOpened()):
+        frame_exists, curr_frame = cap.read()
+        if frame_exists:
+            timestamps_tmp.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+        else:
+            break
+
+    cap.release()
+
+    for i, (ts) in enumerate(zip(timestamps_tmp)):
+        print('Frame timestamp from ' + name + ': ' + str(ts))
+    t_stamps[name] = timestamps_tmp
+def create_video_list(a, ts = True):
     tmp = []
+    for name in os.listdir(a):
+        if name.endswith(".m2ts") or name.endswith(".mov"):
+            to_mp4(name)
+            os.rename(name, 'notmp4\\' + name)
     for name in os.listdir(a):
         if name.endswith(".mp4"):
             tmp.append(name)
+            #get timestamps
+            if ts:
+                create_timestamps(name)
     return tmp
 
 def get_length(filename):
   result = subprocess.Popen(["ffprobe", filename], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
   return [x for x in result.stdout.readlines() if "Duration" in x]
 
-#start of code
 def process(i):
     #
     input = ffmpeg.input(i)
@@ -222,8 +256,8 @@ print(str(ffmpeg) + " is running")
 dir = dirname(abspath(__file__)) + "\\footage"
 print("root: " + str(dir))
 os.chdir(dir)
-vid_arr = create_video_list(dir)
-vid_arr.sort(key=lambda x: os.path.getmtime(x))
+vid_arr = create_video_list(dir, False)
+#vid_arr.sort(key=lambda x: os.path.getmtime(x))
 print("list: " + str(vid_arr) + "")
 #base = ffmpeg.input(vid_arr[0])
 base = process_in_groups(vid_arr[0], 0.9, 400, 6, 1.35, 1080, 1350)
