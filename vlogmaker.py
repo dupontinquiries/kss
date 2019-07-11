@@ -28,6 +28,49 @@ chunked_clips = []
 chunked_timestamps = []
 clips_to_remove = []
 
+#def vals
+DEFAULT_THRESHOLD = 0.92
+DEFAULT_PERIOD = 850
+DEFAULT_REACH_ITER = 1
+DEFAULT_REACH_THRESH = 1.00
+DEFAULT_WIDTH = 1440
+DEFAULT_HEIGHT = 2560
+DEFAULT_MAX_CHUNK_SIZE = .0625
+
+#sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+#with tf.device("/gpu:0"):
+#print("current device = " + str(torch.cuda.current_device()))
+#with torch.cuda.device(1):
+def main():
+    #w = torch.FloatTensor(2,3).cuda()
+    # w was placed in  device_1 by default.
+    dir = dirname(abspath(__file__)) + "\\footage"
+    print("root: " + str(dir))
+    os.chdir(dir)
+    vid_arr = create_video_list(dir, False)
+    if len(vid_arr) < 1:
+        print("no files in directory: " + str(dir))
+        #sys.exit(0)
+    initial = 0
+    process = distr(vid_arr[initial], DEFAULT_THRESHOLD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH, DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
+    while process == False and initial < len(vid_arr) - 1:
+        initial = initial + 1
+        process = distr(vid_arr[initial], DEFAULT_PERIOD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH,
+                        DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
+    main = process
+    if initial < len(vid_arr) - 1:
+        for w in range(initial, len(vid_arr) - 1):
+            # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
+            process = distr(vid_arr[w], DEFAULT_PERIOD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH, DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
+            if process != False:
+                main = k_concat([main, process])
+    out = ffmpeg.output(main, "final\\output_from_all_clips.mp4")
+    render_(out, format='h264')
+    #clean up all clips
+    for clip in clips_to_remove:
+        os.remove(str(clip))
+    print("done")
+
 def file_size(fname):
     statinfo = os.stat(fname)
     return statinfo.st_size
@@ -42,26 +85,42 @@ def read_in_chunks(file_object, chunk_size=1024):
         yield data
 
 def read_in_ffmpeg_chunks(filename, max_chunk_size, file_length):
+    file_length = floor(file_length)
     max_chunk_size *= 60
     t_s = 0
     t_f = max_chunk_size
-    while t_s < file_length:
-        t_f = min(file_length, t_f)
+    while file_length - t_s > 0:
+        delta = t_f - t_s
+        print("t_s = " + str(t_s) + "; " + "t_f = " + str(t_f) + "; " + "d = " + str(delta) + "; ")
+        #if round(delta * 10) / 10 < 1 or round((file_length - t_f) * 10) / 10 < 1:
+        if file_length - t_f <= 0:
+            yield False
         name = str('moviepy_subclip_' + str(t_s) + '_from_' + str(filename))
         #try
         sub = moviepy.video.io.ffmpeg_tools.ffmpeg_extract_subclip(str(filename), t_s, t_f, targetname=name)
         clips_to_remove.append(name)
-        delta = t_f - t_s
         t_s += delta
         t_f += delta
         ret = ffmpeg.input(name)
         if not ret:
-            break
+            yield False
         yield [ret, name]
 
 def k_remove(a):
     if os.path.exists(a):
         os.remove(a)
+
+def k_concat(a):
+    b = a[0]
+    if len(a) == 0:
+        return None
+    if len(a) == 1:
+        return b
+    else:
+        for x in range(1, len(a) - 1):
+            c = a[x]
+            b = ffmpeg.concat(b, c)
+        return b
 
 def distr(filename, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop_h = 1350, max_chunk_size = 5):
     # compress any large files
@@ -72,16 +131,18 @@ def distr(filename, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop_h = 
     del tmp_clip
     print("file length = " + str(l))
     for piece in read_in_ffmpeg_chunks(filename, max_chunk_size, l):
-        if file_size(filename) >= (10 ** 9):
-            print("file " + str(filename) + " is large (" + str(
-                file_size(filename)) + ").  Keeping the chunked clips as \"cc\"")
-        print('piece: ' + str(piece))
-        result = process_audio_loudness_over_time(piece[0], piece[1], mod, c_l, spread, thresh_mod, crop_w, crop_h)
-        if result is not False:
-            smaller_clips.append(result)
+        if piece is not False:
+            if file_size(filename) >= (10 ** 9):
+                print("file " + str(filename) + " is large (" + str(
+                    file_size(filename)) + ").  (Future Capability) Keeping the chunked clips as \"cc\"")
+            print('piece: ' + str(piece))
+            result = process_audio_loudness_over_time(piece[0], piece[1], mod, c_l, spread, thresh_mod, crop_w, crop_h)
+            if result is not False:
+                smaller_clips.append(result)
     if len(smaller_clips) >= 1:
-        #try
-        total = ffmpeg.merge_outputs(smaller_clips)
+        #total = ffmpeg.merge_outputs(smaller_clips)
+        #total = ffmpeg.concat(smaller_clips)
+        total = k_concat(smaller_clips)
         output = ffmpeg.output(total, 'completed_file_of_' + filename)
         render_(output)
         return ffmpeg.input('completed_file_of_' + filename)
@@ -100,44 +161,30 @@ def floor_out(a, bottom):
 #merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     #clean up files space
-    k_remove("final\\processed_output_from_" + name + ".mp4")
-    k_remove("final\\filtered_and_processed_output_from_" + name + ".mp4")
-    k_remove("tmp_a_from_" + name + ".wav")
-    k_remove("tmp_voice_opt_from_" + name + ".wav")
     #remove .mp4 to use other filetypes like .wav
     name = str(name.replace(".mp4", ""))
     input = i
+    #v = input['v']
     a = input['a']
     #clean up audio so program takes loudness of voice into account moreso than other sounds
     a_voice = a.filter('highpass', 210).filter("lowpass", 10500).filter("loudnorm").filter("afftdn", nr=6, nt="w", om="o")
     #clean up audio of final video
     a = a.filter('highpass', 25).filter("lowpass", 17000).filter("loudnorm").filter("afftdn", nr=6, nt="w", om="o")
-    v = input['v']
-    #new try; using only what I have already imported to filter through
-    #print('length of [\'v\'] = ' + len(v))
+    clips_to_remove.append("tmp_a_from_" + name + ".wav")
+    clips_to_remove.append("tmp_voice_opt_from_" + name + ".wav")
     print('sub[0] = ' + str(i))
     print('sub[1] = ' + name)
-    #end of new try
-    #deprecated; used to get subclips in the processing part
+    #get subclips in the processing part
+    print("opening " + "final\\processed_output_from_" + name + ".mp4")
     movie_v = VideoFileClip(name + ".mp4")
     duration = movie_v.duration
-    fps = movie_v.fps
-    while fps == None:
-        print("retrying fps")
-        tmp_mov_fps = VideoFileClip(name + ".mp4")
-        fps = tmp_mov_fps.fps
-        del tmp_mov_fps
-    while duration == None:
-        print("retrying fps")
-        tmp_mov_fps = VideoFileClip(name + ".mp4")
-        duration = tmp_mov_fps.duration
-        del tmp_mov_fps
+    #fps = movie_v.fps
     #export clip audio
     output = ffmpeg.output(a, "tmp_a_from_" + name + ".wav")
     render_(output)
     movie_a = AudioFileClip("tmp_a_from_" + name + ".wav")
     duration_a = movie_a.duration
-    fps_a = movie_a.fps
+    #fps_a = movie_a.fps
     #export voice_optimized audio
     output = ffmpeg.output(a_voice, "tmp_voice_opt_from_" + name + ".wav")
     render_(output)
@@ -205,9 +252,9 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     #logging purposes
     #print("max_db_solo: " + str(max_db_solo) + "/" + floor)
     #print("max_db_multi: " + str(max_db) + "/" + floor)
-    print("thresh_solo: " + str(thresh))
-    print("thresh_multi: " + str(thresh_multi))
-    print("duration: " + str(duration))
+    print("thresh_solo = " + str(thresh))
+    print("thresh_multi = " + str(thresh_multi))
+    print("clip duration = " + str(duration))
     if len(chunks_a) > 1:
         for x in range(0, len(chunks_a) - 1):
             # op1 - harsh analysis on long pieces
@@ -216,48 +263,60 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
             if raw_solo > thresh or raw > thresh_multi:
                 start = max(0, x * chunk_length_s)
                 cap = (x + 1) * chunk_length_s #min((x + 1) * chunk_length_s, duration)
+                print("start pre = " + str(start))
                 print("cap pre = " + str(cap))
-                #while movie_v.is_playing(cap): cap = cap - 0.1
-                import moviepy as moviepy
-                tmp_v = movie_v.subclip(start, cap)
-                tc_v.append(tmp_v)
-                tmp_v.close()
-                tmp_a = movie_a.subclip(start, cap)
-                tc_a.append(tmp_a)
-                del tmp_v
-                del tmp_a
-                print(colored("Section #" + str(x)
-                                  + "\n" + "peak volume = " + str(raw_solo)
-                                  + "\n" + "avg  volume = " + str(raw), 'green'))
-                #print(colored("Failed to render this subclip", 'red'))
+                if cap < duration:
+                    tmp_v = movie_v.subclip(start, cap)
+                    tc_v.append(tmp_v)
+                    tmp_a = movie_a.subclip(start, cap)
+                    tc_a.append(tmp_a)
+                    tmp_v.close()
+                    del tmp_v.reader
+                    del tmp_v
+                    del tmp_a
+                    print(colored("Section #" + str(x)
+                                      + "\n" + "peak volume = " + str(raw_solo)
+                                      + "\n" + "avg  volume = " + str(raw), 'green'))
+                else:
+                    print(colored("Failed to render this subclip due to errors with the time parameters!", 'red'))
             else:
                 print(colored("Section #" + str(x)
                               + "\n" + "peak volume = " + str(raw_solo)
                               + "\n" + "avg  volume = " + str(raw), 'blue'))
-            # op2 - lenient analysis of shorter lengths
-        # come back and check if deleting first skipped ones is necessary
         # combine all clips into one
     if len(tc_v) < 1:
+        print(colored("No packets came through.", 'blue'))
         return False
-    processed_v = tc_v[0]
-    processed_a = tc_a[0]
+    processed_v = None
+    processed_a = None
     if len(tc_v) > 1:
          #invalid handle
         processed_a = moviepy.editor.concatenate_audioclips(tc_a)
         processed_v = moviepy.editor.concatenate_videoclips(tc_v) #error invalid handle
+        print(colored("Concatenating accepted packets.", 'green'))
+    else:
+        processed_v = tc_v[0]
+        processed_a = tc_a[0]
+        print(colored("Taking the single packet that was accepted", 'green'))
     #export clip
-    processed_v.set_audio(processed_a)
+    print("export clip video = " + str(processed_v))
+    print("export clip audio = " + str(processed_a))
+    processed_v = processed_v.set_audio(processed_a) #issue with audio
+    duration = processed_v.duration
     processed_v.write_videofile("final\\processed_output_from_" + name + ".mp4")
-    processed_a.write_audiofile("final\\processed_audio_from_" + name + ".wav")
+    #processed_a.write_audiofile("final\\processed_audio_from_" + name + ".wav")
+    clips_to_remove.append("final\\processed_output_from_" + name + ".mp4")
+    clips_to_remove.append("final\\processed_audio_from_" + name + ".mp4")
     #reopen combined clip
-    movie_v = VideoFileClip("final\\processed_output_from_" + name + ".mp4")
-    duration = movie_v.duration
+    print("reopening " + "final\\processed_output_from_" + name + ".mp4")
+    #movie_v = VideoFileClip("final\\processed_output_from_" + name + ".mp4")
+    #duration = movie_v.duration
     movie_v.reader.close()
+    del processed_a
     print("concat duration = " + str(duration))
     #reimport for filtering
     # filter video
     ret = ffmpeg.input("final\\processed_output_from_" + name + ".mp4")
-    # render_(ffmpeg.output(ret, "testfile.mp4")) test file works
     print("ret = " + str(ret))
     movie_height = movie_v.h
     desired_height = crop_h
@@ -266,19 +325,15 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     scale_factor = min((movie_height / desired_height), (movie_width / desired_width))
     #print("scale factor = " + str(scale_factor))
     base_v = ret['v'].filter('crop', x=1.50*crop_w*scale_factor, y=0*crop_h*scale_factor, w=crop_w*scale_factor, h=crop_h*scale_factor)
-    base_v_out = ffmpeg.output(base_v, "final\\processed_video_from_" + name + ".mp4")
-    render_(base_v_out)
-    base_v_in = ffmpeg.input("final\\processed_video_from_" + name + ".mp4")['v']
     #filter audio
-    base_a = ffmpeg.input("final\\processed_audio_from_" + name + ".wav").filter("loudnorm").filter("acompressor").filter("equalizer", f=200, width_type="o", width=2, g=1).filter("equalizer", f=7000, width_type="o", width=5, g=1)
-    #new_a = ffmpeg.output(base_a, "final\\processed_audio_from_" + name + ".wav")
-    #ffmpeg.run(new_a, overwrite_output=True)
-    #render_(new_a)
-    #new_a_in = ffmpeg.input("final\\processed_audio_from_" + name + ".wav")
+    #base_a = ffmpeg.input("final\\processed_audio_from_" + name + ".wav")
+    base_a = ret['a'].filter("loudnorm").filter("acompressor").filter("equalizer", f=200, width_type="o", width=2, g=1).filter("equalizer", f=7000, width_type="o", width=5, g=1)
     #output
-    output = ffmpeg.output(base_v_in, base_a, "final\\filtered_and_processed_output_from_" + name + ".mp4")
+    output = ffmpeg.output(base_v, base_a, "final\\filtered_and_processed_output_from_" + name + ".mp4")
     render_(output)
     ret = ffmpeg.input("final\\filtered_and_processed_output_from_" + name + ".mp4")
+    clips_to_remove.append("final\\processed_output_from_" + name + ".mp4")
+    clips_to_remove.append("final\\filtered_and_processed_output_from_" + name + ".mp4")
     return ret
 
 # make new function that takes the cut times and adds timewarping
@@ -332,44 +387,4 @@ def get_length(filename):
   result = subprocess.Popen(["ffprobe", filename], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
   return [x for x in result.stdout.readlines() if "Duration" in x]
 
-#sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-#with tf.device("/gpu:0"):
-#print("current device = " + str(torch.cuda.current_device()))
-#with torch.cuda.device(1):
-if True:
-    #w = torch.FloatTensor(2,3).cuda()
-    # w was placed in  device_1 by default.
-    DEFAULT_THRESHOLD = 0.92
-    DEFAULT_PERIOD = 830
-    DEFAULT_REACH_ITER = 1
-    DEFAULT_REACH_THRESH = 1.00
-    DEFAULT_WIDTH = 1920
-    DEFAULT_HEIGHT = 1080
-    DEFAULT_MAX_CHUNK_SIZE = 1
-    dir = dirname(abspath(__file__)) + "\\footage"
-    print("root: " + str(dir))
-    os.chdir(dir)
-    vid_arr = create_video_list(dir, False)
-    if len(vid_arr) < 1:
-        print("no files in directory: " + str(dir))
-        #sys.exit(0)
-    initial = 0
-    process = distr(vid_arr[initial], DEFAULT_THRESHOLD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH, DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
-    while process == False and initial < len(vid_arr) - 1:
-        initial = initial + 1
-        process = distr(vid_arr[initial], DEFAULT_PERIOD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH,
-                        DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
-    main = process
-    if initial < len(vid_arr) - 1:
-        for w in range(initial, len(vid_arr) - 1):
-            # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
-            process = distr(vid_arr[w], DEFAULT_PERIOD, DEFAULT_PERIOD, DEFAULT_REACH_ITER, DEFAULT_REACH_THRESH, DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_MAX_CHUNK_SIZE)
-            if process != False:
-                main = ffmpeg.concat(main, process, v=1, a=1)
-                main = main.node
-    out = ffmpeg.output(main, "final\\output_from_all_clips.mp4")
-    render_(out, format='h264')
-    #clean up all clips
-    for clip in clips_to_remove:
-        os.remove(str(clip))
-    print("done")
+main()
