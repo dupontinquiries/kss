@@ -29,13 +29,13 @@ chunked_timestamps = []
 clips_to_remove = []
 
 #def vals
-DEFAULT_THRESHOLD = 0.92
+DEFAULT_THRESHOLD = 0.98
 DEFAULT_PERIOD = 850
-DEFAULT_REACH_ITER = 1
-DEFAULT_REACH_THRESH = 1.00
-DEFAULT_WIDTH = 1440
-DEFAULT_HEIGHT = 2560
-DEFAULT_MAX_CHUNK_SIZE = .0625
+DEFAULT_REACH_ITER = 3
+DEFAULT_REACH_THRESH = 1.02
+DEFAULT_WIDTH = 2560
+DEFAULT_HEIGHT = 1440
+DEFAULT_MAX_CHUNK_SIZE = 1.20
 
 #sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 #with tf.device("/gpu:0"):
@@ -65,7 +65,7 @@ def main():
             if process != False:
                 main = k_concat([main, process])
     out = ffmpeg.output(main, "final\\output_from_all_clips.mp4")
-    render_(out, format='h264')
+    render_(out) #format='h264'
     #clean up all clips
     for clip in clips_to_remove:
         os.remove(str(clip))
@@ -125,6 +125,9 @@ def k_concat(a):
 def distr(filename, mod, c_l, spread, thresh_mod = 0.9, crop_w = 1080, crop_h = 1350, max_chunk_size = 5):
     # compress any large files
     smaller_clips = []
+    print("attempting to distr() " + filename)
+    if  "completed_file_" in filename: #or "moviepy_subclip" in filename:
+        return False
     tmp_clip = VideoFileClip(filename)
     l = tmp_clip.duration
     tmp_clip.close()
@@ -167,11 +170,11 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     #v = input['v']
     a = input['a']
     #clean up audio so program takes loudness of voice into account moreso than other sounds
-    a_voice = a.filter('highpass', 210).filter("lowpass", 10500).filter("loudnorm").filter("afftdn", nr=6, nt="w", om="o")
     #clean up audio of final video
-    a = a.filter('highpass', 25).filter("lowpass", 17000).filter("loudnorm").filter("afftdn", nr=6, nt="w", om="o")
+    a = a.filter('highpass', 45).filter("lowpass", 17000).filter("loudnorm").filter("afftdn", nr=6, nt="w", om="o")
+    a_voice = a.filter('highpass', 600).filter("lowpass", 7000).filter("loudnorm").filter("afftdn", nr=11, nt="w", om="o")
     clips_to_remove.append("tmp_a_from_" + name + ".wav")
-    clips_to_remove.append("tmp_voice_opt_from_" + name + ".wav")
+    clips_to_remove.append("voice\\tmp_voice_opt_from_" + name + ".wav")
     print('sub[0] = ' + str(i))
     print('sub[1] = ' + name)
     #get subclips in the processing part
@@ -186,13 +189,13 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     duration_a = movie_a.duration
     #fps_a = movie_a.fps
     #export voice_optimized audio
-    output = ffmpeg.output(a_voice, "tmp_voice_opt_from_" + name + ".wav")
+    output = ffmpeg.output(a_voice, "voice\\tmp_voice_opt_from_" + name + ".wav")
     render_(output)
     #import the new audio
     a = AudioSegment.from_mp3("tmp_a_from_" + name + ".wav")
-    a_voices = AudioSegment.from_mp3("tmp_voice_opt_from_" + name + ".wav")
+    a_voices = AudioSegment.from_mp3("voice\\tmp_voice_opt_from_" + name + ".wav")
     # remove file that was rendered
-    k_remove("tmp_voice_opt_from_" + name + ".wav")
+    clips_to_remove.append("voice\\tmp_voice_opt_from_" + name + ".wav")
     #create averaged audio sections and decide which ones meet threshold
     chunk_length_ms = c_l
     chunk_length_s = chunk_length_ms/1000
@@ -327,7 +330,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     base_v = ret['v'].filter('crop', x=1.50*crop_w*scale_factor, y=0*crop_h*scale_factor, w=crop_w*scale_factor, h=crop_h*scale_factor)
     #filter audio
     #base_a = ffmpeg.input("final\\processed_audio_from_" + name + ".wav")
-    base_a = ret['a'].filter("loudnorm").filter("acompressor").filter("equalizer", f=200, width_type="o", width=2, g=1).filter("equalizer", f=7000, width_type="o", width=5, g=1)
+    base_a = ret['a'].filter("loudnorm").filter("equalizer", f=7000, width_type="o", width=5, g=1).filter("equalizer", f=200, width_type="o", width=2, g=-1)#.filter("equalizer", f=200, width_type="o", width=2, g=1) #.filter("acompressor")
     #output
     output = ffmpeg.output(base_v, base_a, "final\\filtered_and_processed_output_from_" + name + ".mp4")
     render_(output)
