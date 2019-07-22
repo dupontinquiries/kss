@@ -34,13 +34,13 @@ clips_to_remove = []
 
 #default values
 #processing
-DEFAULT_THRESHOLD = 0.89
-DEFAULT_PERIOD = 3000
+DEFAULT_THRESHOLD = 0.97
+DEFAULT_PERIOD = 650
 DEFAULT_REACH_ITER = 1
-DEFAULT_REACH_THRESH = 0.89  # 0.99
+DEFAULT_REACH_THRESH = 0.97  # 0.99
 DEFAULT_WIDTH = 2560
 DEFAULT_HEIGHT = 1440
-DEFAULT_MAX_CHUNK_SIZE = .4
+DEFAULT_MAX_CHUNK_SIZE = 2
 verbose = True
 cleanup = False
 dir = ''
@@ -81,14 +81,13 @@ def main(): #call is at the end
         sys.exit(0)
     if verbose: print(colored('Processing files...', 'blue'))
     #gather clips for main file
-    for w in range(0, len(vid_arr)):
-        print('called vid arr')
+    for w in range(0, len(vid_arr) - 1):
     # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         process = distr(vid_arr[w], THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
         if process != False:
             final_cuts.append(process)
             if verbose:
-                print(colored('Addingg file \"' + str(process) + '\" to the final video...', 'blue'))
+                print(colored('Adding file \"' + str(process) + '\" to the final video...', 'blue'))
         else: 
             print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', 'red'))
     if verbose: print(colored('Your final video is almost ready...', 'blue'))
@@ -99,8 +98,9 @@ def main(): #call is at the end
     else:
         print(colored('No clips rendered!', 'red'))
         sys.exit(0)
-    if verbose: print(colored('Your final video has a length of ' + main.duration + '!', 'blue'))
-    main.write_videofile('final\\final_cut_with_props_' + str(THRESHOLD) + '__' + str(PERIOD) + '__' + str(REACH_ITER) + '__' +  str(WIDTH) + '__' + str(HEIGHT) + '__' + str(MAX_CHUNK_SIZE) + '.mp4')
+    if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', 'blue'))
+    main.write_videofile('final\\final_cut_with_props_' + str(THRESHOLD) + '__' + str(PERIOD) + '__' + str(REACH_ITER)
+                         + '__' +  str(WIDTH) + '__' + str(HEIGHT) + '__' + str(MAX_CHUNK_SIZE) + '.mp4')
     #clean up all clips
     if cleanup:
         if verbose: print(colored('Cleaning up the space...', 'blue'))
@@ -124,8 +124,20 @@ def read_in_chunks(file_object, chunk_size=1024):
             break
         yield data
 
-def read_in_ffmpeg_chunks(filename, max_chunk_size, file_length):
-    file_length = floor(file_length)
+def read_in_ffmpeg_chunks(filename, max_chunk_size):
+    try:
+        if verbose: print(colored('Finding length...', 'blue'))
+        tmp_clip = VideoFileClip(filename)
+        l = tmp_clip.duration
+        del tmp_clip
+    except:
+        console_a = ''
+        if not k_xi(filename):
+            console_a = ' not'
+        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file seems to' + console_a
+                      + ' exist.', 'red'))
+        sys.exit(0)
+    file_length = l
     max_chunk_size *= 60
     t_s = 0
     t_f = max_chunk_size
@@ -188,17 +200,14 @@ def k_map(a, name):
         with open(guide_file, "w") as file:
             inputs = ''
             print('a = ' + str(a))
-            for x in range(0, len(a)):
+            for x in range(0, len(a) - 1):
                 fn = a[x]
                 fn = fn.replace('chunks\\', '')
                 inputs += 'file \'' + str(fn) + '\'\n'
             if verbose: print(colored('input list: \n' + inputs, 'blue'))
             file.write(inputs)
-            # cmd = ('ffmpeg -y ' + inputs + '-filter_complex \'[0:0][1:0][2:0][3:0]concat=n=' + len(a) + ':v=0:a=1[out]\'' + ' -map \'[out]\' ' + name)
-            # cmd = ('ffmpeg -y ' + inputs + '-filter_complex \'' + fc + 'concat=n=' + str(len(a) - 1) + ':v=0:a=1[out]\' -map \'[out]\' ' + '\"' + name + '\"')
-            # cmd = ('ffmpeg -y ' + inputs + '-filter_complex \'[0:0][1:0][2:0][3:0]concat=n=' + str(len(a)) + ':v=0:a=1[out]\' -map \'[out]\' ' + name)
-        #cmd = ('ffmpeg -y -f concat -safe 0 -i \"' + k_path(guide_file) + '\" -c copy ' + '\"' + k_path(name) + '\"')
-        cmd = ('ffmpeg -y -f concat -safe 0 -i \"' + k_path(guide_file) + '\" ' + '\"' + k_path(name) + '\"')
+        cmd = ('ffmpeg -y -f concat -safe 0 -i \"' + k_path(guide_file).replace('\\', '/')
+               + '\" -fs 1GB -c:v copy -c:a aac \"' + k_path(name).replace('\\', '/') + '\"')
         print('cmd = ' + cmd)
         subprocess.call(cmd)
         if verbose: print(colored('Importing resulting file...', 'blue'))
@@ -227,8 +236,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     base_name = filename[:-4]
     # compress any large files
     smaller_clips = []
-    print("attempting to distr() " + filename)
-    if verbose: print(colored('Verifying clip...', 'blue'))
+    if verbose: print(colored('Verifying clip \"' + filename + '\"', 'blue'))
     if "completed" in filename or "output_from_all" in filename or "sublcip" in filename or "moviepy" in filename:
         return False
     tmp_clip = False
@@ -237,23 +245,28 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
         if verbose: print(colored('Finding length...', 'blue'))
         tmp_clip = VideoFileClip(filename)
         l = tmp_clip.duration
-        tmp_clip.close()
         del tmp_clip
     except:
         console_a = ''
         if not k_xi(filename):
-            console_a = 'not'
-        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file seems to ' + console_a + ' exist.', 'red'))
+            console_a = ' not'
+        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file seems to' + console_a + ' exist.', 'red'))
         sys.exit(0)
     if verbose: print(colored('Chunking clip...', 'blue'))
-    for piece in read_in_ffmpeg_chunks(filename, max_chunk_size, l):
+    for piece in read_in_ffmpeg_chunks(filename, max_chunk_size):
         if piece is not False:
-            if file_size(filename) >= (10 ** 9):
-                if verbose: print("file " + str(filename) + " is large (" + str(file_size(filename)) + ").  (Future Capability) Keeping the chunked clips as \"cc\"")
-            print('piece: ' + str(piece))
-            result = process_audio_loudness_over_time(piece[0], piece[1], mod, c_l, spread, thresh_mod, crop_w, crop_h)
+            input = piece[0]
+            fn = piece[1]
+            if file_size(fn) >= (10 ** 9):
+                if verbose: print("file " + fn + " is large (" + str(file_size(fn))
+                                  + ").  (Future Capability) Keeping the chunked clips as \"cc\"")
+            if verbose: print('Opening chunk \"' + fn + '\"')
+            result = process_audio_loudness_over_time(input, fn, mod, c_l, spread, thresh_mod, crop_w, crop_h)
             if result is not False:
                 smaller_clips.append(result)
+                if verbose: print(colored('Adding clip \"' + fn + '\" to the list...', 'blue'))
+            else:
+                print('No data appended for chunk \"' + fn + '\"')
     if len(smaller_clips) >= 1:
         output_name = "final\\completed_file_" + base_name
         if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', 'blue'))
@@ -282,8 +295,6 @@ def k_f2v(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi, duration, m
             tc_v.append(tmp_v)
             tmp_a = movie_a.subclip(start, cap)
             tc_a.append(tmp_a)
-            tmp_v.close()
-            del tmp_v.reader
             del tmp_v
             del tmp_a
             print(colored('Section ' + str(start) + ' to ' + str(cap), 'green'))
@@ -385,13 +396,11 @@ def k_filter_loudness(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi,
                 cap = (x + 1) * chunk_length_s  # min((x + 1) * chunk_length_s, duration)
                 print("start pre = " + str(start))
                 print("cap pre = " + str(cap))
-                if cap < duration:
+                if cap <= duration:
                     tmp_v = movie_v.subclip(start, cap)
                     tc_v.append(tmp_v)
                     tmp_a = movie_a.subclip(start, cap)
                     tc_a.append(tmp_a)
-                    tmp_v.close()
-                    del tmp_v.reader
                     del tmp_v
                     del tmp_a
                     inputs += 'subclip' + str(start) + 't' + str(cap) + '\n'
@@ -432,10 +441,10 @@ def k_filter_loudness(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi,
 #merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     #create log for future renderings
-    concat_log = 'chunks\\concat_log_args_' + str(name) + '__' + str(mod_solo) + '__' + str(c_l) + '__' + str(spread) + '__' + str(mod_multi) + '__' + str(crop_w) + '__' + str(crop_h) + '.txt '
+    concat_log = 'chunks\\concat_log_args_' + str(name) + '__' + str(mod_solo) + '__' + str(c_l) + '__' + str(spread) + '__' + str(mod_multi) + '__' + str(crop_w) + '__' + str(crop_h) + '.txt'
     #get root of file name
     og = name
-    name = str(name.replace(".mp4", ""))
+    name = str(name.replace('.mp4', ''))
     input = i
     #audio
     name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
@@ -467,15 +476,16 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     a_voice = ffmpeg.input(name_audio_voice)
     #import the new voice_opt audio
     if verbose: print(colored('Establishing audio files...', 'blue'))
-    movie_a_fc = AudioSegment.from_mp3(name_audio)
-    a_voices_fc = AudioSegment.from_mp3(name_audio_voice)
-    movie_a = AudioFileClip(name_audio)
+    movie_a_fc = AudioSegment.from_wav(name_audio)
+    a_voices_fc = AudioSegment.from_wav(name_audio_voice)
+    movie_a = AudioFileClip(name_audio)  # error handle invalid
     a_voices = AudioFileClip(name_audio_voice)
     #add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     #get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
+    if k_xi(og): print('clip exists')
     movie_v = VideoFileClip(og)
     duration = None
     try:
@@ -495,12 +505,13 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         processed_a = ret_info[1]
     #export clip
     if verbose: print(colored('Combining video and audio...', 'blue'))
-    processed_v = processed_v.set_audio(processed_a)
     duration = processed_v.duration
+    processed_a.set_duration(duration)
+    processed_v = processed_v.set_audio(processed_a)
     if verbose: print(colored('Writing new files from merged snippets...', 'blue'))
     base_name = 'chunks\\processed_output_from_' + name
-    processed_v.write_videofile(base_name + '.mp4')
-    processed_a.write_audiofile(base_name + '.wav')
+    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps, codec = 'h264')
+    processed_a.write_audiofile(base_name + '.wav', fps = movie_a.fps, codec = 'aac')
     clips_to_remove.append(base_name + '.mp4')
     clips_to_remove.append(base_name + '.wav')
     #reopen combined clip
@@ -523,14 +534,17 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
                                                                                                     g=-1)
     output_file = 'chunks\\filtered_and_processed_output_from_' + name
     if verbose: print(colored('Writing filtered files...', 'blue'))
-    output_v = ffmpeg.output(base_v, output_file + '.mp4')
+    output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
     output_a = ffmpeg.output(base_a, output_file + '.wav')
     render_(output_v)
     render_(output_a)
-    processed_v = VideoFileClip(output_file + '.mp4')
-    processed_a = AudioFileClip(output_file + '.wav')
-    processed_v.set_audio(processed_a)
-    processed_v.write_videofile(output_file + '.mp4')
+    #processed_v = VideoFileClip(output_file + '.mp4')
+    #processed_a = AudioFileClip(output_file + '.wav')
+    #processed_v.set_audio(processed_a.set_duration(processed_v.duration))
+    #processed_v.write_videofile(output_file + '.mp4')
+    subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav' + ' -fs 1GB -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
+    #subprocess.call('-c:v copy -c:a aac')
+    k_remove(output_file + '_2.mp4')
     clips_to_remove.append(output_file + '.mp4')
     clips_to_remove.append(output_file + '.wav')
     return output_file + '.mp4'
@@ -540,10 +554,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
 # make new function that takes a song and uses the song to determine threshold at the time
 # and the cut speed is determined by the time between closest to min and closest to max point (distance) in array
 def to_mp4(name):
-    name_root = name[-4:]
-    i = ffmpeg.input(name)
-    o = ffmpeg.output(i, 'file_computed_from' + name_root + '.mp4')
-    render_(o)
+    subprocess.call('ffmpeg -y -i ' + name + ' -fs 1GB -c:v copy -c:a aac ' + name[-4:] + '.mp4')
 def create_timestamps(name):
     print('fetching timestamps for ' + name)
     cap = cv2.VideoCapture(name)
@@ -563,18 +574,20 @@ def create_timestamps(name):
     for i, (ts) in enumerate(zip(timestamps_tmp)):
         print('Frame timestamp from ' + name + ': ' + str(ts))
     t_stamps[name] = timestamps_tmp
-def create_video_list(a, ts = True):
+def create_video_list(a, ts = False):
     tmp = []
     for name in os.listdir(a):
-        name = name.lower()
-        name_root = name[-4:]
-        if name.endswith(".m2ts") or name.endswith(".mov"):
-            to_mp4(name)
-            os.rename(name, 'not_mp4\\' + name)
-    for name in os.listdir(a):
-        if name.lower()[-4:] == '.mp4':
-            name = name[:-4] + '.mp4'
-            tmp.append(name)
+        if(os.path.isfile(name)):
+            if verbose: print(colored('Found file \"' + name + '\"', 'blue'))
+            name_lower = name.lower()
+            name_root = name_lower[:-4]
+            name_ext = name_lower[-4:]
+            if name_ext in ['.m2ts', '.mov']:
+                to_mp4(name)
+                os.rename(name, 'not_mp4\\' + name)
+                name = name[:-4] + '.mp4'
+            if 'subclip' not in name_root and 'output' not in name_root:
+                tmp.append(name)
             if ts:
                 create_timestamps(name)
     return tmp
