@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 import statistics
 import cv2
 import ffmpeg
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+#from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
@@ -14,8 +14,6 @@ import numpy
 from termcolor import colored
 #import tensorflow-gpu as tf
 import random
-import os
-import sys
 
 #import torch as torch
 
@@ -36,13 +34,13 @@ clips_to_remove = []
 
 #default values
 #processing
-DEFAULT_THRESHOLD = 1.00
-DEFAULT_PERIOD = 1650
-DEFAULT_REACH_ITER = 4
+DEFAULT_THRESHOLD = 0.97
+DEFAULT_PERIOD = 650
+DEFAULT_REACH_ITER = 1
 DEFAULT_REACH_THRESH = 0.97  # 0.99
-DEFAULT_WIDTH = 1920 #2560
-DEFAULT_HEIGHT = 1080 #1440
-DEFAULT_MAX_CHUNK_SIZE = 1
+DEFAULT_WIDTH = 2560
+DEFAULT_HEIGHT = 1440
+DEFAULT_MAX_CHUNK_SIZE = 2
 verbose = True
 cleanup = False
 dir = ''
@@ -88,19 +86,18 @@ def main(): #call is at the end
     if verbose: print(colored('Processing files...', 'blue'))
     #gather clips for main file
     maxi = max(1, len(vid_arr) - 1)
-    for w in range(0, max(1, len(vid_arr) - 1)):
+    for w in range(0, maxi):
     # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         process = distr(vid_arr[w], THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
         if process != False:
             final_cuts.append(process)
             if verbose:
                 print(colored('Adding file \"' + str(process) + '\" to the final video...', 'blue'))
-        else: 
+        else:
             print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', 'red'))
     if verbose: print(colored('Your final video is almost ready...', 'blue'))
-    main = None
     if len(final_cuts) > 1:
-        main = concatenate_videoclips(final_cuts)
+        main = moviepy.editor.concatenate_videoclips(final_cuts)
     if len(final_cuts) == 1:
         main = final_cuts[0]
     else:
@@ -142,37 +139,37 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         console_a = ''
         if not k_xi(filename):
             console_a = ' not'
-        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file does' + console_a
-                      + ' seem to exist.', 'red'))
+        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file seems to' + console_a
+                      + ' exist.', 'red'))
         sys.exit(0)
     file_length = l
     max_chunk_size *= 60 #convert to seconds
     t_s = 0
-    t_f = min(file_length, max_chunk_size)
-    #itereate through the file and make chunks
+    t_f = max_chunk_size
     while file_length - t_s > 0:
         delta = t_f - t_s
         print("t_s = " + str(t_s) + "; " + "t_f = " + str(t_f) + "; " + "d = " + str(delta) + "; ")
+        #if round(delta * 10) / 10 < 1 or round((file_length - t_f) * 10) / 10 < 1:
         if file_length - t_f <= 0:
             yield False
         name = str("moviepy_subclip_" + str(t_s) + "_" + str(t_f) + "_from_" + str(filename))
+        #try
         if not k_xi(name):
-            #export subclip
+            #sub = moviepy.video.io.ffmpeg_tools.ffmpeg_extract_subclip(str(filename), t_s, t_f, targetname=name)
             cmd = ['ffmpeg', "-y",
                    "-i", filename,
                    "-ss", "%0.2f" % t_s,
                    "-t", "%0.2f" % delta,
-                   "-vcodec", "h264", "-acodec", "aac", name]
+                   "-vcodec", "copy", "-acodec", "copy", name]
+
             subprocess.call(cmd)
             clips_to_remove.append(name)
         else:
-            print('skipping chunk-rendering of clip \"' + name + '\"')
+            print('skipping rendering of ' + name)
         t_s += delta
         t_f += delta
-        #ret = VideoFileClip(name)
-        #print('nav = ' + str(ret))
         ret = ffmpeg.input(name)
-        if ret == None:
+        if not ret:
             yield False
         yield [ret, name]
 
@@ -242,7 +239,7 @@ def mpy_concat(filenames, output_name):
         mpys_a.append(_a)
         del _v
         del _a
-    v_t = moviepy.editor.concatenate_audioclips(mpys_v)
+    v_t = moviepy.editor.concatenate_videoclips(mpys_v)
     a_t = moviepy.editor.concatenate_videoclips(mpys_a)
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
@@ -299,23 +296,163 @@ def floor_out(a, bottom):
     else:
         return a
 
-def k_round(i, d):
-    n = 1
-    for a in range(0, d):
-        n *= 10
-    return int(n * i) / n
+def k_f2v(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi, duration, movie_v, movie_a, concat_log):
+    tc_v = []
+    tc_a = []
+    with open(concat_log, "r") as file:
+        for line in file:
+            line = line.replace('subclip', '')
+            start = float(line.split('t')[0])
+            cap = float(line.split('t')[1])
+            tmp_v = movie_v.subclip(start, cap)
+            tc_v.append(tmp_v)
+            tmp_a = movie_a.subclip(start, cap)
+            tc_a.append(tmp_a)
+            del tmp_v
+            del tmp_a
+            print(colored('Section ' + str(start) + ' to ' + str(cap), 'green'))
+    if len(tc_v) < 1:
+        print(colored("No packets came through.", 'red'))
+        return False
+    processed_v = None
+    processed_a = None
+    if len(tc_v) > 1:
+        if verbose: print(colored('Concatenating snippets...', 'blue'))
+        if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
+        processed_a = moviepy.editor.concatenate_audioclips(tc_a)
+        processed_v = moviepy.editor.concatenate_videoclips(tc_v)
+        print(colored("Concatenating accepted packets.", 'green'))
+    else:
+        processed_v = tc_v[0]
+        processed_a = tc_a[0]
+        if verbose: print(colored(
+            'Only one packet made it through the vetting process... '
+            + 'you should consider lowering your threshold value or changing the search distance value.',
+            'blue'))
+    return [processed_v, processed_a]
 
-def k_tf(seconds):
-    hours = seconds // (60*60)
-    seconds %= (60*60)
-    minutes = seconds // 60
-    seconds %= 60
-    print('seconds pre = ' + str(seconds))
-    print('seconds post = ' + str(seconds))
-    ret = "%02i:%02i:%02i" % (hours, minutes, seconds)
-    ret += str(seconds - int(seconds))[1:]
-    print('format = ' + ret)
-    return ret
+def k_filter_loudness(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi,
+                      duration, movie_v, movie_a, concat_log):
+    # create averaged audio sections and decide which ones meet threshold
+    if verbose: print(colored('Chunking audio...', 'blue'))
+    chunk_length_ms = c_l
+    chunk_length_s = chunk_length_ms / 1000
+    # maybe use iter_chunks
+    chunks_a = make_chunks(movie_a_fc, chunk_length_ms)
+    chunks_a_voice = make_chunks(a_voices_fc, chunk_length_ms)
+    tc_v = []
+    tc_a = []
+    list_of_db = []
+    list_of_db_solo = []
+    spread_calc = int(((spread - 1) / 2))
+    # get start
+    db_arr = 0
+    if verbose: print(colored('Creating snippets...', 'blue'))
+    for q_1 in range(0, 2 * spread_calc):
+        db_arr += chunks_a_voice[q_1].dBFS
+    db = db_arr / spread
+    for z_init in range(0, spread_calc):  # removed -1
+        list_of_db.append(db)
+        list_of_db_solo.append(chunks_a_voice[z_init].dBFS)
+        print(str(z_init) + " run " + "start")
+    # middle
+    for z_mid in range(spread_calc, len(chunks_a) - 1 - spread_calc):
+        db = 0
+        db_arr = 0
+        for q_2 in range(z_mid - spread_calc, z_mid + 1 + spread_calc):
+            db_arr += chunks_a_voice[q_2].dBFS
+        db = db_arr / spread
+        db_solo = chunks_a_voice[z_mid].dBFS
+        list_of_db.append(db)
+        list_of_db_solo.append(db_solo)
+        print(str(z_mid) + " run " + "middle")
+    # get end
+    db_arr = 0
+    for q_3 in range(len(chunks_a) - 1 - spread_calc, len(chunks_a) - 1):
+        db_arr += chunks_a_voice[q_3].dBFS
+    db = db_arr / spread
+    for z_end in range(len(chunks_a) - (2 * spread_calc), len(chunks_a) - 1):
+        list_of_db.append(db)
+        list_of_db_solo.append(chunks_a_voice[z_end].dBFS)
+        print(str(z_end) + " run " + "end")
+    # reformat the sound levels
+    if verbose: print(colored('Flooring audio to remove -inf sections...', 'blue'))
+    floor = 150
+    if verbose: print(colored('Floor = ' + str(floor), 'blue'))
+    list_of_db = list(map(lambda x: floor_out(x, - floor), list_of_db))
+    list_of_db_solo = list(map(lambda x: floor_out(x, - floor), list_of_db_solo))
+    list_of_db = list(map(lambda x: x + floor, list_of_db))
+    list_of_db_solo = list(map(lambda x: x + floor, list_of_db_solo))
+    # get target threshold to use for modifiers
+    max_db = max(list_of_db)
+    median_db = statistics.median(list_of_db)
+    average_db = statistics.mean(list_of_db)
+    max_db_solo = max(list_of_db_solo)
+    median_db_solo = statistics.median(list_of_db_solo)
+    average_db_solo = statistics.mean(list_of_db_solo)
+    target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
+    thresh = mod_solo * target_db
+    target_db = ((.7 * median_db) + (.2 * average_db) + (.1 * max_db))
+    thresh_multi = mod_multi * target_db
+    # logging purposes
+    # print("max_db_solo: " + str(max_db_solo) + "/" + floor)
+    # print("max_db_multi: " + str(max_db) + "/" + floor)
+    if verbose: print(colored('thresh_solo = ' + str(thresh) + '\nthresh_multi = ' + str(thresh_multi), 'blue'))
+    if verbose: print(colored('Vetting snippets...', 'blue'))
+    inputs = ''
+    if len(chunks_a) > 1:
+        for x in range(0, len(chunks_a) - 1):
+            # op1 - harsh analysis on long pieces
+            raw = list_of_db[x]  # group
+            raw_solo = list_of_db_solo[x]  # group
+            # if raw_solo > thresh or raw > thresh_multi:
+            if raw_solo > thresh or raw > thresh_multi:
+                start = max(0, x * chunk_length_s)
+                cap = (x + 1) * chunk_length_s  # min((x + 1) * chunk_length_s, duration)
+                print("start pre = " + str(start))
+                print("cap pre = " + str(cap))
+                if cap <= duration:
+                    tmp_v = movie_v.subclip(start, cap)
+                    tc_v.append(tmp_v)
+                    tmp_a = movie_a.subclip(start, cap)
+                    tc_a.append(tmp_a)
+                    del tmp_v
+                    del tmp_a
+                    inputs += 'subclip' + str(start) + 't' + str(cap) + '\n'
+                    print(colored("Section #" + str(x)
+                                  + "\n" + "peak volume = " + str(raw_solo)
+                                  + "\n" + "avg  volume = " + str(raw), 'green'))
+                else:
+                    print(colored("Failed to render this subclip due to errors with the time parameters!", 'red'))
+            else:
+                print(colored("Section #" + str(x)
+                              + "\n" + "peak volume = " + str(raw_solo)
+                              + "\n" + "avg  volume = " + str(raw), 'red'))
+        # combine all clips into one
+    else:
+        print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
+        return False
+    if len(tc_v) < 1:
+        print(colored("No packets came through.", 'red'))
+        return False
+    processed_v = None
+    processed_a = None
+    if len(tc_v) > 1:
+        if verbose: print(colored('Concatenating snippets...', 'blue'))
+        if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
+        processed_a = concatenate_audioclips(tc_a)
+        processed_v = concatenate_videoclips(numpy.asarray(tc_v))
+        print(colored("Concatenating accepted packets.", 'green'))
+    else:
+        processed_v = tc_v[0]
+        processed_a = tc_a[0]
+        if verbose: print(colored(
+            'Only one packet made it through the vetting process... '
+            + 'you should consider lowering your threshold value or changing the search distance value.',
+            'blue'))
+    with open(concat_log, "w") as file:
+        file.write(inputs)
+    return [processed_v, processed_a]
 
 #merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
@@ -331,19 +468,21 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
     if verbose: print(colored('Preparing audio for video...', 'blue'))
     #video clip audio
+    a = None
     if not k_xi(name_audio):
-        a_name_audio = input['a']
+        a = input['a']
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', 'blue'))
-        a_name_audio = a_name_audio.filter('highpass', 35).filter("lowpass", 18000).filter("loudnorm")
+        a = a.filter('highpass', 35).filter("lowpass", 18000).filter("loudnorm")
         # export clip audio
         if verbose: print(colored('Writing tailored audio...', 'blue'))
-        output = ffmpeg.output(a_name_audio, name_audio)
+        output = ffmpeg.output(a, name_audio)
         render_(output)
     if verbose: print(colored('Importing tailored audio from \"' + name_audio + '\"...', 'blue'))
     a = ffmpeg.input(name_audio)
     #voice_opt
+    a_voice = None
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', 'blue'))
         a_voice = a.filter("afftdn", nr=12, nt="w", om="o").filter(
@@ -357,19 +496,16 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     if verbose: print(colored('Establishing audio files...', 'blue'))
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
-    if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
-    movie_a = AudioFileClip(name_audio)
-    movie_a_length = movie_a.duration
+    movie_a = moviepy.editor.AudioFileClip(name_audio)
+    movie_a_bitrate = movie_a.bitrate
     a_voices = AudioFileClip(name_audio_voice)
     #add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     #get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
+    if k_xi(og): print('clip exists')
     movie_v = VideoFileClip(og)
-    #test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
-    #movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
-    #movie_v.show()
     movie_v_duration = movie_v.duration
     duration = None
     try:
@@ -379,168 +515,16 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         return False
     if k_xi(concat_log):
         if verbose: print(colored('Found documentation of what clips to use...', 'blue'))
-        tc_v = []
-        tc_a = []
-        with open(concat_log, "r") as file:
-            for line in file:
-                line = line.replace('subclip', '')
-                start = float(line.split('t')[0])
-                cap = float(line.split('t')[1])
-                tmp_v = movie_v.subclip(start, cap)
-                tmp_v.fps = movie_v.fps
-                tc_v.append(tmp_v)
-                tmp_a = movie_a.subclip(start, cap)
-                tc_a.append(tmp_a)
-                tmp_v.close()
-                tmp_a.close()
-                del tmp_v
-                del tmp_a
-                print(colored('Section ' + str(start) + ' to ' + str(cap), 'green'))
-        if len(tc_v) < 1:
-            print(colored("No packets came through.", 'red'))
-            return False
-        processed_v = None
-        processed_a = None
-        if len(tc_v) > 1:
-            if verbose: print(colored('Concatenating snippets...', 'blue'))
-            if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
-            processed_a = concatenate_audioclips(tc_a)
-            processed_v = concatenate_videoclips(tc_v)
-            print(colored("Concatenating accepted packets.", 'green'))
-        else:
-            processed_v = tc_v[0]
-            processed_a = tc_a[0]
-            if verbose: print(colored(
-                'Only one packet made it through the vetting process... '
-                + 'you should consider lowering your threshold value or changing the search distance value.',
-                'blue'))
+        ret_info = k_f2v(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi,
+                         duration, movie_v, movie_a, concat_log)
+        processed_v = ret_info[0]
+        processed_a = ret_info[1]
     else:
         if verbose: print(colored('No documentation found: creating clips and documentation from scratch...', 'blue'))
-        # create averaged audio sections and decide which ones meet threshold
-        if verbose: print(colored('Chunking audio...', 'blue'))
-        chunk_length_ms = c_l
-        chunk_length_s = chunk_length_ms / 1000
-        # maybe use iter_chunks
-        chunks_a = make_chunks(movie_a_fc, chunk_length_ms)
-        chunks_a_voice = make_chunks(a_voices_fc, chunk_length_ms)
-        tc_v = []
-        tc_a = []
-        list_of_db = []
-        list_of_db_solo = []
-        spread_calc = int((spread / 2))
-        #create array of sound levels
-        for c in range(0, len(chunks_a) - 1):
-            #get solo
-            list_of_db_solo.append(chunks_a_voice[c].dBFS)
-            #get avg
-            db_arr = chunks_a_voice[c].dBFS
-            start = max(0, c - int((spread_calc / 2) + .5))
-            cap = min(c + spread_calc, len(chunks_a) - 1)
-            n = 0
-            for d in range(start, cap):
-                n += 1
-                db_arr += chunks_a_voice[d].dBFS
-            db_arr = db_arr / (n + 1)
-            list_of_db.append(db_arr)
-            if verbose: print('Created sound packets at n = ' + str(c))
-        # reformat the sound levels
-        if verbose: print(colored('Flooring audio to remove -inf sections...', 'blue'))
-        floor = -70
-        if verbose: print(colored('Floor = ' + str(floor), 'blue'))
-        list_of_db = list(map(lambda x: floor_out(x, floor), list_of_db))
-        list_of_db_solo = list(map(lambda x: floor_out(x, floor), list_of_db_solo))
-        list_of_db = list(map(lambda x: x - floor, list_of_db))
-        list_of_db_solo = list(map(lambda x: x - floor, list_of_db_solo))
-        #rounding
-        list_of_db = list(map(lambda x: k_round(x, 2), list_of_db))
-        list_of_db_solo = list(map(lambda x: k_round(x, 2), list_of_db_solo))
-        # get target threshold to use for modifiers
-        max_db = max(list_of_db)
-        median_db = k_round(statistics.median(list_of_db), 2)
-        average_db = k_round(statistics.mean(list_of_db), 2)
-        max_db_solo = k_round(max(list_of_db_solo), 2)
-        median_db_solo = k_round(statistics.median(list_of_db_solo), 2)
-        average_db_solo = k_round(statistics.mean(list_of_db_solo), 2)
-        target_db = k_round(((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo)), 2)
-        thresh = k_round(mod_solo * target_db, 2)
-        target_db = k_round(((.7 * median_db) + (.2 * average_db) + (.1 * max_db)), 2)
-        thresh_multi = k_round(mod_multi * target_db, 2)
-        # logging purposes
-        # print("max_db_solo: " + str(max_db_solo) + "/" + floor)
-        # print("max_db_multi: " + str(max_db) + "/" + floor)
-        if verbose: print(colored('thresh_solo = ' + str(thresh) + '\nthresh_multi = ' + str(thresh_multi), 'blue'))
-        if verbose: print(colored('Vetting snippets...', 'blue'))
-        inputs = ''
-        if len(chunks_a) > 1:
-            _run = True
-            for x in range(0, len(chunks_a) - 1):
-                # op1 - harsh analysis on long pieces
-                raw = list_of_db[x]  # group
-                raw_solo = list_of_db_solo[x]  # group
-                # if raw_solo > thresh or raw > thresh_multi:
-                if _run and (raw_solo >= thresh or raw >= thresh_multi):
-                    start = (max(0, x * chunk_length_s))
-                    cap = ((x + 1) * chunk_length_s)
-                    print('start = ' + str(start) + 's')
-                    print('cap = ' + str(cap) + 's')
-                    if start < duration:
-                        if cap > duration:
-                            _run = False
-                            cap = duration
-                            print(
-                                colored(
-                                    "Clip end time reached (' + cap + 's)!", 'red'))
-                        else:
-                            start_ = k_tf(start)
-                            cap_ = k_tf(cap)
-                            #tmp_v = movie_v.subclip(start_, cap_)
-                            #tmp_a = movie_a.subclip('00:00:' + start_, '00:00:' + cap_)
-                            tg = 'session/' + str(sessionId) + '_process_loudness_' + 'tmp_subclip.mp4'
-                            cmd = 'ffmpeg -y -i ' + '\"' + og + '\" ' + '-ss ' + start_ + ' -t ' + k_tf(cap - start) + ' -c:v copy -c:a copy ' + '\"' + tg + '\" '
-                            print(cmd)
-                            subprocess.call(cmd, shell=True)
-                            #ffmpeg_extract_subclip(og, start, cap, targetname=tg)
-                            #tmp_v = VideoFileClip(tg)
-                            #tmp_a = AudioFileClip(tg)
-                            #tc_a.append(tmp_a)
-                            #tc_v.append(tmp_v)
-                            #os.remove(tg)
-                            #del tmp_v
-                            #del tmp_a
-                        inputs += 'subclip' + str(start) + 't' + str(cap) + '\n'
-                        print(colored("Section #" + str(x)
-                                      + "\n" + "peak volume = " + str(raw_solo)
-                                      + "\n" + "avg  volume = " + str(raw), 'green'))
-                    else:
-                        print(colored("Failed to render this subclip due to errors with the time parameters!", 'red'))
-                else:
-                    print(colored("Section #" + str(x)
-                                  + "\n" + "peak volume = " + str(raw_solo)
-                                  + "\n" + "avg  volume = " + str(raw), 'red'))
-            # combine all clips into one
-        else:
-            print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
-            return False
-        if len(tc_v) < 1:
-            print(colored("No packets came through.", 'red'))
-            return False
-        processed_v = None
-        processed_a = None
-        if len(tc_v) > 1:
-            if verbose: print(colored('Concatenating snippets...', 'blue'))
-            if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
-            processed_a = concatenate_audioclips(tc_a)
-            processed_v = concatenate_videoclips(tc_v)
-            print(colored("Concatenating accepted packets.", 'green'))
-        else:
-            processed_v = tc_v[0]
-            processed_a = tc_a[0]
-            if verbose: print(colored(
-                'Only one packet made it through the vetting process... '
-                + 'you should consider lowering your threshold value or changing the search distance value.',
-                'blue'))
-        with open(concat_log, "w") as file:
-            file.write(inputs)
+        ret_info = k_filter_loudness(c_l, movie_a_fc, a_voices_fc, spread, mod_solo, mod_multi,
+                                     duration, movie_v, movie_a, concat_log)
+        processed_v = ret_info[0]
+        processed_a = ret_info[1]
     #export clip
     if verbose: print(colored('Combining video and audio...', 'blue'))
     duration = processed_v.duration
@@ -548,18 +532,8 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     processed_v = processed_v.set_audio(processed_a)
     if verbose: print(colored('Writing new files from merged snippets...', 'blue'))
     base_name = 'chunks\\processed_output_from_' + name
-    #processed_v.show()
-    #processed_v = processed_v.set_duration(1)
-
-    nframes = processed_v.duration * processed_v.fps  # total number of frames used
-    total_image = sum(processed_v.iter_frames(processed_v.fps, dtype=float, progress_bar=True))
-    average_image = ImageClip(total_image / nframes)
-    average_image.save_frame("average_test.png")
-
-    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps)
-    #,  ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'], bitrate=500)
-    #, temp_audiofile=str('tmp_audio__' + base_name + '.wav'), remove_temp=False)
-    processed_a.write_audiofile(base_name + '.wav', fps=movie_a.fps, codec='aac')
+    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps, codec = 'h264')
+    processed_a.write_audiofile(base_name + '.wav', fps = movie_a.fps, codec = 'aac')
     clips_to_remove.append(base_name + '.mp4')
     clips_to_remove.append(base_name + '.wav')
     #reopen combined clip
@@ -652,3 +626,41 @@ def get_length(filename):
 #print("current device = " + str(torch.cuda.current_device()))
 #with torch.cuda.device(1):
 main()
+
+
+
+///
+
+# get start
+        # get start
+        db_arr = 0
+        if verbose: print(colored('Creating snippets...', 'blue'))
+        for q_1 in range(0, 2 * spread_calc):
+            db_arr += chunks_a_voice[q_1].dBFS
+        db = db_arr / spread
+        for z_init in range(0, spread_calc - 1):  # removed -1
+            list_of_db.append(db)
+            list_of_db_solo.append(chunks_a_voice[z_init].dBFS)
+            print(str(z_init) + " run " + "start")
+        # middle
+        # middle
+        for z_mid in range(spread_calc, len(chunks_a) - 2 - spread_calc):
+            db = 0
+            db_arr = 0
+            for q_2 in range(z_mid - spread_calc, z_mid + spread_calc):
+                db_arr += chunks_a_voice[q_2].dBFS
+            db = db_arr / spread
+            db_solo = chunks_a_voice[z_mid].dBFS
+            list_of_db.append(db)
+            list_of_db_solo.append(db_solo)
+            print(str(z_mid) + " run " + "middle")
+        # get end
+        # get end
+        db_arr = 0
+        for q_3 in range(len(chunks_a) - 1 - spread_calc, len(chunks_a) - 1):
+            db_arr += chunks_a_voice[q_3].dBFS
+        db = db_arr / spread
+        for z_end in range(len(chunks_a) - 1 - (2 * spread_calc), len(chunks_a) - 1):
+            list_of_db.append(db)
+            list_of_db_solo.append(chunks_a_voice[z_end].dBFS)
+            print(str(z_end) + " run " + "end")
