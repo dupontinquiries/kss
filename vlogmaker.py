@@ -34,13 +34,13 @@ clips_to_remove = []
 
 #default values
 #processing
-DEFAULT_THRESHOLD = 0.97
-DEFAULT_PERIOD = 650
-DEFAULT_REACH_ITER = 2
+DEFAULT_THRESHOLD = 1.00
+DEFAULT_PERIOD = 1300
+DEFAULT_REACH_ITER = 4
 DEFAULT_REACH_THRESH = 0.97  # 0.99
 DEFAULT_WIDTH = 2560
 DEFAULT_HEIGHT = 1440
-DEFAULT_MAX_CHUNK_SIZE = .4
+DEFAULT_MAX_CHUNK_SIZE = .2
 verbose = True
 cleanup = False
 dir = ''
@@ -96,8 +96,9 @@ def main(): #call is at the end
         else: 
             print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', 'red'))
     if verbose: print(colored('Your final video is almost ready...', 'blue'))
+    main = None
     if len(final_cuts) > 1:
-        main = moviepy.editor.concatenate_videoclips(final_cuts)
+        main = concatenate_videoclips(final_cuts)
     if len(final_cuts) == 1:
         main = final_cuts[0]
     else:
@@ -169,7 +170,6 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         #ret = VideoFileClip(name)
         #print('nav = ' + str(ret))
         ret = ffmpeg.input(name)
-        print('tecca = ' + str(ret))
         if ret == None:
             yield False
         yield [ret, name]
@@ -240,7 +240,7 @@ def mpy_concat(filenames, output_name):
         mpys_a.append(_a)
         del _v
         del _a
-    v_t = moviepy.editor.concatenate_videoclips(mpys_v)
+    v_t = moviepy.editor.concatenate_audioclips(mpys_v)
     a_t = moviepy.editor.concatenate_videoclips(mpys_a)
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
@@ -338,7 +338,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
     if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
-    movie_a = AudioFileClip(str(name_audio))
+    movie_a = AudioFileClip(name_audio)
     movie_a_length = movie_a.duration
     a_voices = AudioFileClip(name_audio_voice)
     #add them to delete list
@@ -378,8 +378,8 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         if len(tc_v) > 1:
             if verbose: print(colored('Concatenating snippets...', 'blue'))
             if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
-            processed_a = moviepy.editor.concatenate_audioclips(tc_a)
-            processed_v = moviepy.editor.concatenate_videoclips(tc_v)
+            processed_a = concatenate_audioclips(tc_a)
+            processed_v = concatenate_videoclips(tc_v)
             print(colored("Concatenating accepted packets.", 'green'))
         else:
             processed_v = tc_v[0]
@@ -402,47 +402,29 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         list_of_db = []
         list_of_db_solo = []
         spread_calc = int((spread / 2))
-        # get start
-        # get start
-        db_arr = 0
-        if verbose: print(colored('Creating snippets...', 'blue'))
-        for q_1 in range(0, 2 * spread_calc):
-            db_arr += chunks_a_voice[q_1].dBFS
-        db = db_arr / spread
-        for z_init in range(0, spread_calc - 1):  # removed -1
-            list_of_db.append(db)
-            list_of_db_solo.append(chunks_a_voice[z_init].dBFS)
-            print(str(z_init) + " run " + "start")
-        # middle
-        # middle
-        for z_mid in range(spread_calc, len(chunks_a) - 2 - spread_calc):
-            db = 0
-            db_arr = 0
-            for q_2 in range(z_mid - spread_calc, z_mid + spread_calc):
-                db_arr += chunks_a_voice[q_2].dBFS
-            db = db_arr / spread
-            db_solo = chunks_a_voice[z_mid].dBFS
-            list_of_db.append(db)
-            list_of_db_solo.append(db_solo)
-            print(str(z_mid) + " run " + "middle")
-        # get end
-        # get end
-        db_arr = 0
-        for q_3 in range(len(chunks_a) - 1 - spread_calc, len(chunks_a) - 1):
-            db_arr += chunks_a_voice[q_3].dBFS
-        db = db_arr / spread
-        for z_end in range(len(chunks_a) - 1 - (2 * spread_calc), len(chunks_a) - 1):
-            list_of_db.append(db)
-            list_of_db_solo.append(chunks_a_voice[z_end].dBFS)
-            print(str(z_end) + " run " + "end")
+        #create array of sound levels
+        for c in range(0, len(chunks_a) - 1):
+            #get solo
+            list_of_db_solo.append(chunks_a_voice[c].dBFS)
+            #get avg
+            db_arr = chunks_a_voice[c].dBFS
+            start = max(0, c - int((spread_calc / 2) + .5))
+            cap = min(c + spread_calc, len(chunks_a) - 1)
+            n = 0
+            for d in range(start, cap):
+                n += 1
+                db_arr += chunks_a_voice[d].dBFS
+            db_arr = db_arr / (n + 1)
+            list_of_db.append(db_arr)
+            if verbose: print('Created sound packets at n = ' + str(c))
         # reformat the sound levels
         if verbose: print(colored('Flooring audio to remove -inf sections...', 'blue'))
-        floor = 70
+        floor = -70
         if verbose: print(colored('Floor = ' + str(floor), 'blue'))
-        list_of_db = list(map(lambda x: floor_out(x, - floor), list_of_db))
-        list_of_db_solo = list(map(lambda x: floor_out(x, - floor), list_of_db_solo))
-        list_of_db = list(map(lambda x: x + floor, list_of_db))
-        list_of_db_solo = list(map(lambda x: x + floor, list_of_db_solo))
+        list_of_db = list(map(lambda x: floor_out(x, floor), list_of_db))
+        list_of_db_solo = list(map(lambda x: floor_out(x, floor), list_of_db_solo))
+        list_of_db = list(map(lambda x: x - floor, list_of_db))
+        list_of_db_solo = list(map(lambda x: x - floor, list_of_db_solo))
         # get target threshold to use for modifiers
         max_db = max(list_of_db)
         median_db = statistics.median(list_of_db)
@@ -461,21 +443,28 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         if verbose: print(colored('Vetting snippets...', 'blue'))
         inputs = ''
         if len(chunks_a) > 1:
+            _run = True
             for x in range(0, len(chunks_a) - 1):
                 # op1 - harsh analysis on long pieces
                 raw = list_of_db[x]  # group
                 raw_solo = list_of_db_solo[x]  # group
                 # if raw_solo > thresh or raw > thresh_multi:
-                if raw_solo > thresh or raw > thresh_multi:
+                if _run and (raw_solo > thresh or raw > thresh_multi):
                     start = max(0, x * chunk_length_s)
                     cap = (x + 1) * chunk_length_s  # min((x + 1) * chunk_length_s, duration)
-                    print("start pre = " + str(start))
-                    print("cap pre = " + str(cap))
-                    if cap <= duration:
+                    print('start = ' + str(start) + 's')
+                    print('cap = ' + str(cap) + 's')
+                    if start < duration:
+                        if cap > duration:
+                            _run = False
+                            cap = duration
+                            print(
+                                colored(
+                                    "Clip end time reached!", 'red'))
                         tmp_v = movie_v.subclip(start, cap)
-                        tc_v.append(tmp_v)
                         tmp_a = movie_a.subclip(start, cap)
                         tc_a.append(tmp_a)
+                        tc_v.append(tmp_v)
                         del tmp_v
                         del tmp_a
                         inputs += 'subclip' + str(start) + 't' + str(cap) + '\n'
@@ -519,7 +508,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     processed_v = processed_v.set_audio(processed_a)
     if verbose: print(colored('Writing new files from merged snippets...', 'blue'))
     base_name = 'chunks\\processed_output_from_' + name
-    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps, codec = 'h264')
+    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps, codec = 'h264') #, temp_audiofile=str('tmp_audio__' + base_name + '.wav'), remove_temp=False)
     processed_a.write_audiofile(base_name + '.wav', fps = movie_a.fps, codec = 'aac')
     clips_to_remove.append(base_name + '.mp4')
     clips_to_remove.append(base_name + '.wav')
