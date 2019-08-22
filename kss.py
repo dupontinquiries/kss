@@ -36,13 +36,13 @@ clips_to_remove = []
 
 #default values
 #processing
-DEFAULT_THRESHOLD = 1.00
-DEFAULT_PERIOD = 1650
-DEFAULT_REACH_ITER = 4
-DEFAULT_REACH_THRESH = 0.97  # 0.99
+DEFAULT_THRESHOLD = 0.7
+DEFAULT_PERIOD = 750
+DEFAULT_REACH_ITER = 2
+DEFAULT_REACH_THRESH = 0.7
 DEFAULT_WIDTH = 1920 #2560
 DEFAULT_HEIGHT = 1080 #1440
-DEFAULT_MAX_CHUNK_SIZE = 1
+DEFAULT_MAX_CHUNK_SIZE = 1.2
 verbose = True
 cleanup = False
 dir = ''
@@ -161,7 +161,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             cmd = ['ffmpeg', "-y",
                    "-i", filename,
                    "-ss", "%0.2f" % t_s,
-                   "-t", "%0.2f" % delta,
+                   "-t", "%0.2f" % (min(delta, l - t_s)),
                    "-vcodec", "h264", "-acodec", "aac", name]
             subprocess.call(cmd)
             clips_to_remove.append(name)
@@ -445,7 +445,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
             if verbose: print('Created sound packets at n = ' + str(c))
         # reformat the sound levels
         if verbose: print(colored('Flooring audio to remove -inf sections...', 'blue'))
-        floor = -70
+        floor = -500
         if verbose: print(colored('Floor = ' + str(floor), 'blue'))
         list_of_db = list(map(lambda x: floor_out(x, floor), list_of_db))
         list_of_db_solo = list(map(lambda x: floor_out(x, floor), list_of_db_solo))
@@ -471,102 +471,76 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         if verbose: print(colored('thresh_solo = ' + str(thresh) + '\nthresh_multi = ' + str(thresh_multi), 'blue'))
         if verbose: print(colored('Vetting snippets...', 'blue'))
         inputs = ''
+        movie_v_fps = movie_v.fps
+        fr = None
+        sub = None
+        start = 0
+        cap = 0
+        n = 0 #iterator
+        x = 0 #passing chunk iterator
+        c = 0 #good chunk counter
+        p_arr = []
         if len(chunks_a) > 1:
-            _run = True
-            for x in range(0, len(chunks_a) - 1):
-                # op1 - harsh analysis on long pieces
-                raw = list_of_db[x]  # group
-                raw_solo = list_of_db_solo[x]  # group
-                # if raw_solo > thresh or raw > thresh_multi:
-                if _run and (raw_solo >= thresh or raw >= thresh_multi):
-                    start = (max(0, x * chunk_length_s))
-                    cap = ((x + 1) * chunk_length_s)
-                    print('start = ' + str(start) + 's')
-                    print('cap = ' + str(cap) + 's')
-                    if start < duration:
-                        if cap > duration:
-                            _run = False
-                            cap = duration
-                            print(
-                                colored(
-                                    "Clip end time reached (' + cap + 's)!", 'red'))
+            periods = ''
+            while n < len(chunks_a) - 1 and cap < movie_v_duration:
+                #print('nxc = ' + str(n), str(x), str(c))
+                if x <= n:
+                    raw = list_of_db[n]
+                    raw_solo = list_of_db_solo[n]
+                    periods = '.'
+                    while x < len(chunks_a) - 1 and raw_solo >= thresh and raw >= thresh_multi:
+                        raw = list_of_db[x]
+                        raw_solo = list_of_db_solo[x]
+                        #print('nxc = ' + str(n), str(x), str(c))
+                        cap = (x + 1) * chunk_length_s
+                        x += 1
+                        periods += '.'
+                    p_arr.append(n - x - 1)
+                    curr_start = x * chunk_length_s
+                    if start != cap:
+                        inputs += 'subclip' + str(start) + 't' + str(x * chunk_length_s) + '\n'
+                        c += 1
+                        if sub is None:
+                            sub = i.trim(start_frame=movie_v_fps * start, end_frame=movie_v_fps * curr_start)
                         else:
-                            start_ = k_tf(start)
-                            cap_ = k_tf(cap)
-                            #tmp_v = movie_v.subclip(start_, cap_)
-                            #tmp_a = movie_a.subclip('00:00:' + start_, '00:00:' + cap_)
-                            tg = 'session/' + str(sessionId) + '_process_loudness_' + 'tmp_subclip.mp4'
-                            cmd = 'ffmpeg -y -i ' + '\"' + og + '\" ' + '-ss ' + start_ + ' -t ' + k_tf(cap - start) + ' -c:v copy -c:a copy ' + '\"' + tg + '\" '
-                            print(cmd)
-                            subprocess.call(cmd, shell=True)
-                            #ffmpeg_extract_subclip(og, start, cap, targetname=tg)
-                            #tmp_v = VideoFileClip(tg)
-                            #tmp_a = AudioFileClip(tg)
-                            #tc_a.append(tmp_a)
-                            #tc_v.append(tmp_v)
-                            #os.remove(tg)
-                            #del tmp_v
-                            #del tmp_a
-                        inputs += 'subclip' + str(start) + 't' + str(cap) + '\n'
-                        print(colored("Section #" + str(x)
-                                      + "\n" + "peak volume = " + str(raw_solo)
-                                      + "\n" + "avg  volume = " + str(raw), 'green'))
-                    else:
-                        print(colored("Failed to render this subclip due to errors with the time parameters!", 'red'))
-                else:
-                    print(colored("Section #" + str(x)
-                                  + "\n" + "peak volume = " + str(raw_solo)
-                                  + "\n" + "avg  volume = " + str(raw), 'red'))
+                            tmp_sub = i.trim(start_frame=movie_v_fps * start, end_frame=movie_v_fps * curr_start)
+                            sub = ffmpeg.concat(sub, tmp_sub)
+                        print(colored('Accepted Section #' + str(c)
+                                      + '\n' + 'start = ' + str(start)
+                                      + '\n' + 'cap = ' + str(cap)
+                                      + '\n' + periods
+                                      , 'green'))
+                        periods = ''
+                start = x * chunk_length_s
+                cap = (x + 1) * chunk_length_s
+                n += 1
+                periods = '.'
             # combine all clips into one
         else:
             print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
             return False
-        if len(tc_v) < 1:
-            print(colored("No packets came through.", 'red'))
+        if c == 0:
+            print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
             return False
-        processed_v = None
-        processed_a = None
-        if len(tc_v) > 1:
-            if verbose: print(colored('Concatenating snippets...', 'blue'))
-            if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
-            processed_a = concatenate_audioclips(tc_a)
-            processed_v = concatenate_videoclips(tc_v)
-            print(colored("Concatenating accepted packets.", 'green'))
         else:
-            processed_v = tc_v[0]
-            processed_a = tc_a[0]
-            if verbose: print(colored(
-                'Only one packet made it through the vetting process... '
-                + 'you should consider lowering your threshold value or changing the search distance value.',
-                'blue'))
-        with open(concat_log, "w") as file:
-            file.write(inputs)
-    #export clip
-    if verbose: print(colored('Combining video and audio...', 'blue'))
-    duration = processed_v.duration
-    processed_a.set_duration(duration)
-    processed_v = processed_v.set_audio(processed_a)
-    if verbose: print(colored('Writing new files from merged snippets...', 'blue'))
+            fr = sub
+            p_t = k_round(x / (len(chunks_a) - 1), 5)
+            avg_p = int(statistics.mean(p_arr))
+            periods = ''
+            for o in range(0, avg_p):
+                periods += '.'
+            print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
+                        + '\nwith an average length of ' + str(avg_p * chunk_length_s) + 's:'
+                        + '\n' + periods
+                                      , 'blue'))
+        #print('nxc = ' + str(n), str(x), str(c))
+        #n = len(fr) - 1
+        #fr = ffmpeg.concat(*fr) #, n=n, a=1, v=0)
+        #base_name = 'chunks\\processed_output_from_' + name
+        #fr.output(base_name + '.mp4').run(overwrite_output=True)
+        print('tecca = ' + str(fr))
     base_name = 'chunks\\processed_output_from_' + name
-    #processed_v.show()
-    #processed_v = processed_v.set_duration(1)
-
-    nframes = processed_v.duration * processed_v.fps  # total number of frames used
-    total_image = sum(processed_v.iter_frames(processed_v.fps, dtype=float, progress_bar=True))
-    average_image = ImageClip(total_image / nframes)
-    average_image.save_frame("average_test.png")
-
-    processed_v.write_videofile(base_name + '.mp4', fps = movie_v.fps)
-    #,  ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'], bitrate=500)
-    #, temp_audiofile=str('tmp_audio__' + base_name + '.wav'), remove_temp=False)
-    processed_a.write_audiofile(base_name + '.wav', fps=movie_a.fps, codec='aac')
-    clips_to_remove.append(base_name + '.mp4')
-    clips_to_remove.append(base_name + '.wav')
-    #reopen combined clip
-    if verbose: print(colored('reopening ' + base_name + '.mp4' + ' using ffmpeg...', 'blue'))
-    #reimport for filtering
-    # filter video
-    ret = ffmpeg.input(base_name + '.mp4')
+    ret = fr #ffmpeg.input(base_name + '.mp4')
     movie_height = movie_v.h
     desired_height = crop_h
     movie_width = movie_v.w
@@ -584,14 +558,15 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
                                                                                                     g=-1)
     output_file = 'chunks\\filtered_and_processed_output_from_' + name
     if verbose: print(colored('Writing filtered files...', 'blue'))
-    output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
-    output_a = ffmpeg.output(base_a, output_file + '.wav')
-    render_(output_v)
-    render_(output_a)
-    subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
-                    + ' -fs 1GB -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
+    output = ffmpeg.output(base_v, base_a, output_file + '.mp4')
+    #output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
+    #output_a = ffmpeg.output(base_a, output_file + '.wav')
+    #render_(output_v)
+    #render_(output_a)
+    #subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
+    #                + ' -fs 1GB -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
     #subprocess.call('-c:v copy -c:a aac')
-    k_remove(output_file + '_2.mp4')
+    #k_remove(output_file + '_2.mp4')
     clips_to_remove.append(output_file + '.mp4')
     clips_to_remove.append(output_file + '.wav')
     return output_file + '.mp4'
