@@ -16,6 +16,7 @@ from termcolor import colored
 import random
 import os
 import sys
+from k_chunk import k_chunk
 
 #import torch as torch
 
@@ -317,6 +318,100 @@ def k_tf(seconds):
     print('format = ' + ret)
     return ret
 
+
+
+def k_stats(cl, l_spread, l_solo):
+    """returns an ordered list [0] and median value [1]"""
+    ls = len(l_solo) - 1
+    print('len spread = ' + str(len(l_spread) - 1))
+    f_spread = [k_chunk(0, [], 0, 0, 0, 1, True)]
+    f_solo = [k_chunk(0, [], 0, 0, 0, 1, True)]
+    print(str(f_solo[0].sv))
+    for o in range(0, ls):
+        c = cl[o]
+        #spread
+        print('spread')
+        compare = (len(f_spread) - 1) // 2
+        print('compare = ' + str(compare))
+        while c.sv < f_spread[compare].sv and compare < len(f_spread) - 1:
+            print('++ ' + str(compare))
+            compare = max(1, compare + ((len(f_spread) - compare) // 2))
+        while c.sv > f_spread[compare].sv and compare > 0:
+            print('-- ' + str(compare))
+            compare = max(1, compare - ((len(f_spread) //2 - compare) // 2))
+        print('af ' + str(compare))
+        while len(f_spread) - 1 < compare:
+            f_spread.append(None)
+        f_spread[compare] = c
+        print(str(f_spread[compare].t_s) + 's @ ' + str(compare))
+        # solo
+        print('solo')
+        compare = (len(f_solo) - 1) // 2
+        print('compare = ' + str(compare))
+        while c.v < f_solo[compare].v and compare < len(f_solo) - 1:
+            print('++ ' + str(compare))
+            compare = max(1, compare + ((len(f_solo) - compare) // 2))
+        while c.v > f_solo[compare].v and compare > 0:
+            print('-- ' + str(compare))
+            compare = max(1, compare - ((len(f_solo) // 2 - compare) // 2))
+        print('af ' + str(compare))
+        while len(f_solo) - 1 < compare:
+            f_solo.append(None)
+        f_solo[compare] = c
+        print(str(f_solo[compare].t_s) + 's @ ' + str(compare))
+    return [f_spread, f_spread[(len(l_spread) - 1) // 2], statistics.average(f_spread), max(f_spread),
+            f_solo, f_solo[(len(f_solo) - 1) // 2], statistics.average(f_solo), max(f_solo)]
+
+def k_binary_index(l_spread, l_solo, v_spread, v_solo):
+    #spread
+    l = l_spread
+    v = v_spread
+    i = 0
+    j = len(l) - 1
+    while i != j + 1:
+        m = (i + j) //2
+        if l[m] < v:
+            i = m + 1
+        else:
+            j = m - 1
+    if 0 <= i < len(l) and l(i) == v:
+        i = i
+    else:
+        i = -1
+    i_spread = i
+    #solo
+    l = l_solo
+    v = v_solo
+    i = 0
+    j = len(l) - 1
+    while i != j + 1:
+        m = (i + j) // 2
+        if l[m] < v:
+            i = m + 1
+        else:
+            j = m - 1
+    if 0 <= i < len(l) and l(i) == v:
+        i = i
+    else:
+        i = -1
+    i_solo = i
+    #ret
+    return [i_spread, i_solo]
+
+def k_l_compare(l, v):
+    i = 0
+    j = len(l) - 1
+    while i != j + 1:
+        m = (i + j) // 2
+        if l[m] < v:
+            i = m + 1
+        else:
+            j = m - 1
+    if 0 <= i < len(l) and l(i) == v:
+        return i
+    else:
+        return -1
+
 #merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     #create log for future renderings
@@ -425,119 +520,80 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         chunks_a_voice = make_chunks(a_voices_fc, chunk_length_ms)
         tc_v = []
         tc_a = []
-        list_of_db = []
-        list_of_db_solo = []
+        list_db_spread = []
+        list_db_solo = []
+        kc = []
         spread_calc = int((spread / 2))
         #create array of sound levels
-        for c in range(0, len(chunks_a) - 1):
-            #get solo
-            list_of_db_solo.append(chunks_a_voice[c].dBFS)
-            #get avg
-            db_arr = chunks_a_voice[c].dBFS
-            start = max(0, c - int((spread_calc / 2) + .5))
-            cap = min(c + spread_calc, len(chunks_a) - 1)
-            n = 0
-            for d in range(start, cap):
-                n += 1
-                db_arr += chunks_a_voice[d].dBFS
-            db_arr = db_arr / (n + 1)
-            list_of_db.append(db_arr)
-            if verbose: print('Created sound packets at n = ' + str(c))
-        # reformat the sound levels
-        if verbose: print(colored('Flooring audio to remove -inf sections...', 'blue'))
-        floor = -500
-        if verbose: print(colored('Floor = ' + str(floor), 'blue'))
-        list_of_db = list(map(lambda x: floor_out(x, floor), list_of_db))
-        list_of_db_solo = list(map(lambda x: floor_out(x, floor), list_of_db_solo))
-        list_of_db = list(map(lambda x: x - floor, list_of_db))
-        list_of_db_solo = list(map(lambda x: x - floor, list_of_db_solo))
-        #rounding
-        list_of_db = list(map(lambda x: k_round(x, 2), list_of_db))
-        list_of_db_solo = list(map(lambda x: k_round(x, 2), list_of_db_solo))
-        # get target threshold to use for modifiers
-        max_db = max(list_of_db)
-        median_db = k_round(statistics.median(list_of_db), 2)
-        average_db = k_round(statistics.mean(list_of_db), 2)
-        max_db_solo = k_round(max(list_of_db_solo), 2)
-        median_db_solo = k_round(statistics.median(list_of_db_solo), 2)
-        average_db_solo = k_round(statistics.mean(list_of_db_solo), 2)
-        target_db = k_round(((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo)), 2)
-        thresh = k_round(mod_solo * target_db, 2)
-        target_db = k_round(((.7 * median_db) + (.2 * average_db) + (.1 * max_db)), 2)
-        thresh_multi = k_round(mod_multi * target_db, 2)
-        # logging purposes
-        # print("max_db_solo: " + str(max_db_solo) + "/" + floor)
-        # print("max_db_multi: " + str(max_db) + "/" + floor)
-        if verbose: print(colored('thresh_solo = ' + str(thresh) + '\nthresh_multi = ' + str(thresh_multi), 'blue'))
-        if verbose: print(colored('Vetting snippets...', 'blue'))
-        inputs = ''
+        for o in range(0, len(chunks_a) - 1):
+            c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_ms)
+            kc.append(c)
+            list_db_spread.append(c.sv)
+            list_db_solo.append(c.v)
+        # get list stats for pinpointing threshold
+        #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
+        kstats = k_stats(kc, list_db_spread, list_db_solo)
+        #spread
+        l_db_spread = kstats[0]
+        median_db_spread = kstats[1]
+        average_db_spread = kstats[2]
+        max_db_spread = kstats[3]
+        #solo
+        l_db_solo = kstats[4]
+        median_db_solo = kstats[5]
+        average_db_solo = kstats[6]
+        max_db_solo = kstats[7]
+        #get thresholds
+        target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
+        thresh_solo = mod_solo * target_db
+        target_db = (.7 * average_db_spread) + (.2 * average_db_spread) + (.1 * max_db_spread)
+        thresh_spread = mod_multi * target_db
+        #get cutoff values
+        cutoffs = k_binary_index(l_db_spread, l_db_solo, thresh_spread, thresh_solo)
+        i_cut_spread = cutoffs[0]
+        l_a_spread = sorted(l_db_spread[i_cut_spread:], key=lambda k_chunk: k_chunk.i)
+        i_cut_solo = cutoffs[1]
+        l_a_solo = sorted(l_db_solo[i_cut_solo:], key=lambda k_chunk: k_chunk.i)
+        fl = []
+        if i_cut_solo < i_cut_spread:
+            #proceed with spread list
+            l1 = l_a_spread
+            l2 = l_a_solo
+        else:
+            #proceed with solo list
+            l1 = l_a_solo
+            l2 = l_a_spread
+        for o in range(0, len(l1) - 1):
+            index = k_l_compare(l2, l1[o])
+            if index != -1:
+                fl.append(l1[o])
+        # log
+        le = len(fl)
+        if(le == 0):
+            print('no values passed')
+            return False
+        if verbose: print(colored('Building snippets...', 'blue'))
         movie_v_fps = movie_v.fps
-        fr = None
-        sub = None
-        start = 0
-        cap = 0
-        n = 0 #iterator
-        x = 0 #passing chunk iterator
-        c = 0 #good chunk counter
-        p_arr = []
-        if len(chunks_a) > 1:
-            periods = ''
-            while n < len(chunks_a) - 1 and cap < movie_v_duration:
-                #print('nxc = ' + str(n), str(x), str(c))
-                if x <= n:
-                    raw = list_of_db[n]
-                    raw_solo = list_of_db_solo[n]
-                    periods = '.'
-                    while x < len(chunks_a) - 1 and raw_solo >= thresh and raw >= thresh_multi:
-                        raw = list_of_db[x]
-                        raw_solo = list_of_db_solo[x]
-                        #print('nxc = ' + str(n), str(x), str(c))
-                        cap = (x + 1) * chunk_length_s
-                        x += 1
-                        periods += '.'
-                    p_arr.append(n - x - 1)
-                    curr_start = x * chunk_length_s
-                    if start != cap:
-                        inputs += 'subclip' + str(start) + 't' + str(x * chunk_length_s) + '\n'
-                        c += 1
-                        if sub is None:
-                            sub = i.trim(start_frame=movie_v_fps * start, end_frame=movie_v_fps * curr_start)
-                        else:
-                            tmp_sub = i.trim(start_frame=movie_v_fps * start, end_frame=movie_v_fps * curr_start)
-                            sub = ffmpeg.concat(sub, tmp_sub)
-                        print(colored('Accepted Section #' + str(c)
-                                      + '\n' + 'start = ' + str(start)
-                                      + '\n' + 'cap = ' + str(cap)
-                                      + '\n' + periods
-                                      , 'green'))
-                        periods = ''
-                start = x * chunk_length_s
-                cap = (x + 1) * chunk_length_s
-                n += 1
-                periods = '.'
-            # combine all clips into one
-        else:
-            print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
-            return False
-        if c == 0:
-            print(colored('Error creating chunks of audio!  Not enough chunks created.', 'red'))
-            return False
-        else:
-            fr = sub
-            p_t = k_round(x / (len(chunks_a) - 1), 5)
-            avg_p = int(statistics.mean(p_arr))
-            periods = ''
-            for o in range(0, avg_p):
-                periods += '.'
-            print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
-                        + '\nwith an average length of ' + str(avg_p * chunk_length_s) + 's:'
-                        + '\n' + periods
-                                      , 'blue'))
-        #print('nxc = ' + str(n), str(x), str(c))
-        #n = len(fr) - 1
-        #fr = ffmpeg.concat(*fr) #, n=n, a=1, v=0)
-        #base_name = 'chunks\\processed_output_from_' + name
-        #fr.output(base_name + '.mp4').run(overwrite_output=True)
+        inputs = ''
+        sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+        if(le == 1):
+            print('one value passed')
+        if(le > 1):
+            print('multiple values passed')
+            for c in fl[1:]:
+                tmp_sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+                sub = ffmpeg.concat(sub, tmp_sub)
+        if verbose: print(colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
+        fr = sub
+        #p_t = k_round(x / (len(chunks_a) - 1), 5)
+        #avg_p = int(statistics.mean(p_arr))
+        #periods = ''
+        #for o in range(0, avg_p):
+        #    periods += '.'
+        #print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
+        #                + '\nwith an average length of ' + str(avg_p * chunk_length_s) + 's:'
+        #                + '\n' + periods
+        #                              , 'blue'))
         print('tecca = ' + str(fr))
     base_name = 'chunks\\processed_output_from_' + name
     ret = fr #ffmpeg.input(base_name + '.mp4')
