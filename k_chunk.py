@@ -33,4 +33,19 @@ class k_chunk:
             return a
 
     def __repr__(self):
-        return repr(('i: ' + str(self.i) + ' vol: ' + str(self.v)))
+        return repr(('[CHUNK]' + 'v: ' + str(self.v) + ' sv: ' + str(self.sv)))
+
+    def __setitem__(self, key, val):
+        self.__setitem__(self, key, val)
+
+    def __getitem__(self, key):
+        return self.__getitem__(self, key)
+
+    def __getattr__(self, attr):
+        return attr
+
+    def v(self):
+        return self.v
+
+    def sv(self):
+        return self.sv

@@ -192,7 +192,7 @@ def k_concat(a):
     else:
         for x in range(1, len(a) - 1):
             c = a[x]
-            b = ffmpeg.concat(b, c)
+            b = ffmpeg.concat(b['v'], b['a'], c['v'], c['a'], v=1, a=1)
         return b
 
 def k_path(p):
@@ -318,49 +318,106 @@ def k_tf(seconds):
     print('format = ' + ret)
     return ret
 
+# There are different ways to do a Quick Sort partition, this implements the
+# Hoare partition scheme. Tony Hoare also created the Quick Sort algorithm.
+def partition_spread(nums, low, high):
+    # We select the middle element to be the pivot. Some implementations select
+    # the first element or the last element. Sometimes the median value becomes
+    # the pivot, or a random one. There are many more strategies that can be
+    # chosen or created.
+    pivot = nums[(low + high) // 2]
+    i = low - 1
+    j = high + 1
+    while True:
+        i += 1
+        while nums[i].sv < pivot.sv:
+            i += 1
+
+        j -= 1
+        while nums[j].sv > pivot.sv:
+            j -= 1
+
+        if i >= j:
+            return j
+
+        # If an element at i (on the left of the pivot) is larger than the
+        # element at j (on right right of the pivot), then swap them
+        nums[i], nums[j] = nums[j], nums[i]
 
 
-def k_stats(cl, l_spread, l_solo):
-    """returns an ordered list [0] and median value [1]"""
-    ls = len(l_solo) - 1
-    print('len spread = ' + str(len(l_spread) - 1))
-    f_spread = [k_chunk(0, [], 0, 0, 0, 1, True)]
-    f_solo = [k_chunk(0, [], 0, 0, 0, 1, True)]
-    print(str(f_solo[0].sv))
-    for o in range(0, ls):
-        c = cl[o]
-        #spread
-        print('spread')
-        compare = (len(f_spread) - 1) // 2
-        print('compare = ' + str(compare))
-        while c.sv < f_spread[compare].sv and compare < len(f_spread) - 1:
-            print('++ ' + str(compare))
-            compare = max(1, compare + ((len(f_spread) - compare) // 2))
-        while c.sv > f_spread[compare].sv and compare > 0:
-            print('-- ' + str(compare))
-            compare = max(1, compare - ((len(f_spread) //2 - compare) // 2))
-        print('af ' + str(compare))
-        while len(f_spread) - 1 < compare:
-            f_spread.append(None)
-        f_spread[compare] = c
-        print(str(f_spread[compare].t_s) + 's @ ' + str(compare))
-        # solo
-        print('solo')
-        compare = (len(f_solo) - 1) // 2
-        print('compare = ' + str(compare))
-        while c.v < f_solo[compare].v and compare < len(f_solo) - 1:
-            print('++ ' + str(compare))
-            compare = max(1, compare + ((len(f_solo) - compare) // 2))
-        while c.v > f_solo[compare].v and compare > 0:
-            print('-- ' + str(compare))
-            compare = max(1, compare - ((len(f_solo) // 2 - compare) // 2))
-        print('af ' + str(compare))
-        while len(f_solo) - 1 < compare:
-            f_solo.append(None)
-        f_solo[compare] = c
-        print(str(f_solo[compare].t_s) + 's @ ' + str(compare))
-    return [f_spread, f_spread[(len(l_spread) - 1) // 2], statistics.average(f_spread), max(f_spread),
-            f_solo, f_solo[(len(f_solo) - 1) // 2], statistics.average(f_solo), max(f_solo)]
+def quick_sort_spread(nums):
+    # Create a helper function that will be called recursively
+    def _quick_sort_spread(items, low, high):
+        if low < high:
+            # This is the index after the pivot, where our lists are split
+            split_index = partition_spread(items, low, high)
+            _quick_sort_spread(items, low, split_index)
+            _quick_sort_spread(items, split_index + 1, high)
+
+    _quick_sort_spread(nums, 0, len(nums) - 1)
+
+
+# There are different ways to do a Quick Sort partition, this implements the
+# Hoare partition scheme. Tony Hoare also created the Quick Sort algorithm.
+def partition_solo(nums, low, high):
+    # We select the middle element to be the pivot. Some implementations select
+    # the first element or the last element. Sometimes the median value becomes
+    # the pivot, or a random one. There are many more strategies that can be
+    # chosen or created.
+    pivot = nums[(low + high) // 2]
+    i = low - 1
+    j = high + 1
+    while True:
+        i += 1
+        while nums[i].v < pivot.v:
+            i += 1
+
+        j -= 1
+        while nums[j].v > pivot.v:
+            j -= 1
+
+        if i >= j:
+            return j
+
+        # If an element at i (on the left of the pivot) is larger than the
+        # element at j (on right right of the pivot), then swap them
+        nums[i], nums[j] = nums[j], nums[i]
+
+
+def quick_sort_solo(nums):
+    # Create a helper function that will be called recursively
+    def _quick_sort_solo(items, low, high):
+        if low < high:
+            # This is the index after the pivot, where our lists are split
+            split_index = partition_spread(items, low, high)
+            _quick_sort_solo(items, low, split_index)
+            _quick_sort_solo(items, split_index + 1, high)
+
+    _quick_sort_solo(nums, 0, len(nums) - 1)
+
+def k_stats(cl):
+    #stats
+    from operator import itemgetter, attrgetter
+    f_spread = quick_sort_spread(cl)
+    f_solo = quick_sort_solo(cl)
+    #tmp values
+    tmp_spread = []
+    tmp_solo = []
+    for c in enumerate(f_spread):
+        tmp_spread.append(c.sv)
+    for c in enumerate(f_solo):
+        tmp_spread.append(c.v)
+    #mean
+    mean_f_spread = statistics.mean(tmp_spread)
+    mean_f_solo= statistics.mean(tmp_solo)
+    #median
+    median_f_spread = statistics.median(tmp_spread)
+    median_f_solo = statistics.median(tmp_solo)
+    #max
+    max_f_spread = max(tmp_spread)
+    max_f_solo = max(tmp_solo)
+    return [f_spread, median_f_spread, mean_f_spread, max_f_spread,
+            f_solo, median_f_solo, mean_f_solo, max_f_solo]
 
 def k_binary_index(l_spread, l_solo, v_spread, v_solo):
     #spread
@@ -528,11 +585,11 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         for o in range(0, len(chunks_a) - 1):
             c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_ms)
             kc.append(c)
-            list_db_spread.append(c.sv)
-            list_db_solo.append(c.v)
+            #list_db_spread.append(c.sv)
+            #list_db_solo.append(c.v)
         # get list stats for pinpointing threshold
         #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
-        kstats = k_stats(kc, list_db_spread, list_db_solo)
+        kstats = k_stats(kc) #, list_db_spread, list_db_solo)
         #spread
         l_db_spread = kstats[0]
         median_db_spread = kstats[1]
@@ -582,7 +639,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
             print('multiple values passed')
             for c in fl[1:]:
                 tmp_sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
-                sub = ffmpeg.concat(sub, tmp_sub)
+                sub = ffmpeg.concat(sub['v'], sub['a'], tmp_sub['v'], tmp_sub['a'], v=1, a=1)
         if verbose: print(colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
         fr = sub
         #p_t = k_round(x / (len(chunks_a) - 1), 5)
