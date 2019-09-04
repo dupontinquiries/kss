@@ -12,19 +12,19 @@ import moviepy as moviepy
 from math import *
 import numpy
 from termcolor import colored
-#import tensorflow-gpu as tf
+# import tensorflow-gpu as tf
 import random
 import os
 import sys
 from k_chunk import k_chunk
 
-#import torch as torch
+# import torch as torch
 
-#from numba import vectorize
+# from numba import vectorize
 
 t_stamps = {}
 
-#functions
+# functions
 
 FFMPEG_BIN = 'ffmpeg'
 dir = dirname(abspath(__file__)) + "\\footage"
@@ -32,44 +32,47 @@ chunked_clips = []
 chunked_timestamps = []
 clips_to_remove = []
 
-#def val presets
-#car voice: 0.96, 500, 1, 0.94, 2560, 1440, 1
+# def val presets
+# car voice: 0.96, 500, 1, 0.94, 2560, 1440, 1
 
-#default values
-#processing
+# default values
+# processing
 DEFAULT_THRESHOLD = 0.7
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 2
 DEFAULT_REACH_THRESH = 0.7
-DEFAULT_WIDTH = 1920 #2560
-DEFAULT_HEIGHT = 1080 #1440
+DEFAULT_WIDTH = 1920  # 2560
+DEFAULT_HEIGHT = 1080  # 1440
 DEFAULT_MAX_CHUNK_SIZE = 1.2
 verbose = True
 cleanup = False
 dir = ''
 
-#id / random string generator
+
+# id / random string generator
 def randomString(stringLength=10):
     string = 'abcdefghijklmnopqrstuvwxyz1234567890'
     """Generate a random string of fixed length """
     letters = string
     return ''.join(random.choice(letters) for i in range(stringLength))
 
+
 sessionId = randomString()
 
 print(colored('Session ' + sessionId + ' is running...'))
 
-def main(): #call is at the end
-    #create actually variables
+
+def main():  # call is at the end
+    # create actually variables
     THRESHOLD = DEFAULT_THRESHOLD
     PERIOD = DEFAULT_PERIOD
     REACH_ITER = DEFAULT_REACH_ITER
     WIDTH = DEFAULT_WIDTH
     HEIGHT = DEFAULT_HEIGHT
     MAX_CHUNK_SIZE = DEFAULT_MAX_CHUNK_SIZE
-    #initialize list for concatenation
+    # initialize list for concatenation
     final_cuts = []
-    #find directory
+    # find directory
     dir = ''
     try:
         if dir is not '':
@@ -77,26 +80,27 @@ def main(): #call is at the end
         else:
             dir = dirname(abspath(__file__)) + '\\footage'
     except:
-        print(colored('The directory \"' + dir +'\" was not found!', 'red'))
+        print(colored('The directory \"' + dir + '\" was not found!', 'red'))
         sys.exit(0)
     os.chdir(dir)
     if verbose: print(colored('root: ' + str(dir), 'blue'))
     if verbose: print(colored('Finding all video files...', 'blue'))
-    vid_arr = create_video_list(dir, False) # dir, create time stamps and reorder based on time blocks, time block duration
+    vid_arr = create_video_list(dir,
+                                False)  # dir, create time stamps and reorder based on time blocks, time block duration
     if len(vid_arr) < 1:
         print(colored('No video files were found in \"' + dir + '\"!', 'red'))
         sys.exit(0)
     if verbose: print(colored('Processing files...', 'blue'))
-    #gather clips for main file
+    # gather clips for main file
     maxi = max(1, len(vid_arr) - 1)
     for w in range(0, max(1, len(vid_arr) - 1)):
-    # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
+        # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         process = distr(vid_arr[w], THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
         if process != False:
             final_cuts.append(process)
             if verbose:
                 print(colored('Adding file \"' + str(process) + '\" to the final video...', 'blue'))
-        else: 
+        else:
             print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', 'red'))
     if verbose: print(colored('Your final video is almost ready...', 'blue'))
     main = None
@@ -109,20 +113,23 @@ def main(): #call is at the end
         sys.exit(0)
     if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', 'blue'))
     main.write_videofile('final\\final_cut_with_props_' + str(THRESHOLD) + '__' + str(PERIOD) + '__' + str(REACH_ITER)
-                         + '__' +  str(WIDTH) + '__' + str(HEIGHT) + '__' + str(MAX_CHUNK_SIZE) + '.mp4')
-    #clean up all clips
+                         + '__' + str(WIDTH) + '__' + str(HEIGHT) + '__' + str(MAX_CHUNK_SIZE) + '.mp4')
+    # clean up all clips
     if cleanup:
         if verbose: print(colored('Cleaning up the space...', 'blue'))
         for clip in clips_to_remove:
             k_remove(str(clip))
     print(colored('Your video is ready!', 'green'))
 
+
 def k_xi(p):
     return os.path.exists(p)
+
 
 def file_size(fname):
     statinfo = os.stat(fname)
     return statinfo.st_size
+
 
 def read_in_chunks(file_object, chunk_size=1024):
     """Lazy function (generator) to read a file piece by piece.
@@ -132,6 +139,7 @@ def read_in_chunks(file_object, chunk_size=1024):
         if not data:
             break
         yield data
+
 
 def read_in_ffmpeg_chunks(filename, max_chunk_size):
     try:
@@ -143,14 +151,14 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         console_a = ''
         if not k_xi(filename):
             console_a = ' not'
-        print(colored('An error was encountered while opening \"' + filename+ '\"!  The file does' + console_a
+        print(colored('An error was encountered while opening \"' + filename + '\"!  The file does' + console_a
                       + ' seem to exist.', 'red'))
         sys.exit(0)
     file_length = l
-    max_chunk_size *= 60 #convert to seconds
+    max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
-    #itereate through the file and make chunks
+    # itereate through the file and make chunks
     while file_length - t_s > 0:
         delta = t_f - t_s
         print("t_s = " + str(t_s) + "; " + "t_f = " + str(t_f) + "; " + "d = " + str(delta) + "; ")
@@ -158,7 +166,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             yield False
         name = str("moviepy_subclip_" + str(t_s) + "_" + str(t_f) + "_from_" + str(filename))
         if not k_xi(name):
-            #export subclip
+            # export subclip
             cmd = ['ffmpeg', "-y",
                    "-i", filename,
                    "-ss", "%0.2f" % t_s,
@@ -170,18 +178,20 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             print('skipping chunk-rendering of clip \"' + name + '\"')
         t_s += delta
         t_f += delta
-        #ret = VideoFileClip(name)
-        #print('nav = ' + str(ret))
+        # ret = VideoFileClip(name)
+        # print('nav = ' + str(ret))
         ret = ffmpeg.input(name)
         if ret == None:
             yield False
         yield [ret, name]
 
+
 def k_remove(a):
     if k_xi(a):
         os.remove(a)
 
-#concatenating video files
+
+# concatenating video files
 def k_concat(a):
     if verbose: print(colored('Concatenating a list of files using the k_concat function...', 'blue'))
     b = a[0]
@@ -195,10 +205,12 @@ def k_concat(a):
             b = ffmpeg.concat(b['v'], b['a'], c['v'], c['a'], v=1, a=1)
         return b
 
+
 def k_path(p):
     return str(os.path.abspath(str(p)))
 
-#concatenating audio files
+
+# concatenating audio files
 def k_map(a, name):
     if verbose: print(colored('Rendering output \'' + name + '\' with the k_map function...', 'blue'))
     b = a[0]
@@ -232,6 +244,7 @@ def k_map(a, name):
         clips_to_remove.append(name)
         return inp
 
+
 def mpy_concat(filenames, output_name):
     if verbose: print(colored('Concatenating a list of files using the mpy_concat function...', 'blue'))
     mpys_v = []
@@ -248,6 +261,7 @@ def mpy_concat(filenames, output_name):
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
 
+
 def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size):
     base_name = filename[:-4]
     # compress any large files
@@ -256,7 +270,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     if "completed" in filename or "output_from_all" in filename or "sublcip" in filename or "moviepy" in filename:
         return False
     tmp_clip = False
-    #get duration
+    # get duration
     try:
         if verbose: print(colored('Finding length...', 'blue'))
         tmp_clip = VideoFileClip(filename)
@@ -267,7 +281,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
         if not k_xi(filename):
             console_a = ' not'
         print(colored('An error was encountered while opening \"'
-                      + filename+ '\"!  The file seems to' + console_a + ' exist.', 'red'))
+                      + filename + '\"!  The file seems to' + console_a + ' exist.', 'red'))
         sys.exit(0)
     if verbose: print(colored('Chunking clip...', 'blue'))
     for piece in read_in_ffmpeg_chunks(filename, max_chunk_size):
@@ -291,8 +305,10 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     else:
         return False
 
+
 def render_(component):
     ffmpeg.run(component, overwrite_output=True)
+
 
 def floor_out(a, bottom):
     if a < bottom:
@@ -300,15 +316,17 @@ def floor_out(a, bottom):
     else:
         return a
 
+
 def k_round(i, d):
     n = 1
     for a in range(0, d):
         n *= 10
     return int(n * i) / n
 
+
 def k_tf(seconds):
-    hours = seconds // (60*60)
-    seconds %= (60*60)
+    hours = seconds // (60 * 60)
+    seconds %= (60 * 60)
     minutes = seconds // 60
     seconds %= 60
     print('seconds pre = ' + str(seconds))
@@ -317,6 +335,7 @@ def k_tf(seconds):
     ret += str(seconds - int(seconds))[1:]
     print('format = ' + ret)
     return ret
+
 
 # There are different ways to do a Quick Sort partition, this implements the
 # Hoare partition scheme. Tony Hoare also created the Quick Sort algorithm.
@@ -395,38 +414,78 @@ def quick_sort_solo(nums):
 
     _quick_sort_solo(nums, 0, len(nums) - 1)
 
-def k_stats(cl):
-    #stats
+
+def k_qs(arr, fn):
+    # helper
+    def k_hqs(items, low, high):
+        # split around pivot
+        split = partition(items, low, high)
+        k_hqs(items, low, split)
+        k_hqs(items, split + 1, high)
+
+    # swapping function
+    def partition(nums, low, high):
+        pivot = nums[(low + high) // 2]
+        i = low - 1
+        j = high + 1
+        while True:
+            i += 1
+            while nums[i].v < pivot.v:
+                i += 1
+
+            j -= 1
+            while nums[j].v > pivot.v:
+                j -= 1
+
+            if i >= j:
+                return j
+
+
+def k_stats(cl, mod_multi, mod_solo):
+    # stats
     from operator import itemgetter, attrgetter
-    f_spread = quick_sort_spread(cl)
-    f_solo = quick_sort_solo(cl)
-    #tmp values
-    tmp_spread = []
-    tmp_solo = []
+    f_spread = k_qs(cl, getsv)
+    f_solo = k_qs(cl, getV)
+    # tmp values
+    stats_spread = []
+    stats_solo = []
     for c in enumerate(f_spread):
-        tmp_spread.append(c.sv)
+        stats_spread.append(c.sv)
     for c in enumerate(f_solo):
-        tmp_spread.append(c.v)
-    #mean
-    mean_f_spread = statistics.mean(tmp_spread)
-    mean_f_solo= statistics.mean(tmp_solo)
-    #median
-    median_f_spread = statistics.median(tmp_spread)
-    median_f_solo = statistics.median(tmp_solo)
-    #max
-    max_f_spread = max(tmp_spread)
-    max_f_solo = max(tmp_solo)
-    return [f_spread, median_f_spread, mean_f_spread, max_f_spread,
-            f_solo, median_f_solo, mean_f_solo, max_f_solo]
+        stats_spread.append(c.v)
+    # mean
+    mean_f_spread = (statistics.harmonic_mean(stats_spread) * .5) + (statistics.mean(stats_spread) * .5)
+    mean_f_solo = (statistics.harmonic_mean(stats_solo) * .5) + (statistics.mean(stats_solo) * .5)
+    # median
+    median_f_spread = stats_spread[len(stats_spread) // 2]
+    median_f_solo = stats_solo[len(stats_solo) // 2]
+    # max
+    max_f_spread = stats_spread[-1]
+    max_f_solo = stats_solo[-1]
+
+    thresh_multi = (mean_f_spread * .4) + (median_f_spread * .3) + (max_f_spread * .3)
+    thresh_solo = (mean_f_solo * .4) + (median_f_solo * .3) + (max_f_solo * .3)
+
+    rem_spread = k_splval(f_spread, thresh_multi)
+    rem_solo = k_splval(f_solo, thresh_solo)
+
+    rem_spread = k_qs(rem_spread, get_ts)
+    rem_solo = k_qs(rem_solo, get_ts)
+
+    return [{'list_spread': rem_spread,
+             'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
+             'list_solo': rem_solo,
+             'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
+
 
 def k_binary_index(l_spread, l_solo, v_spread, v_solo):
-    #spread
+    # spread
     l = l_spread
     v = v_spread
     i = 0
     j = len(l) - 1
     while i != j + 1:
-        m = (i + j) //2
+        m = (i + j) // 2
         if l[m] < v:
             i = m + 1
         else:
@@ -436,7 +495,7 @@ def k_binary_index(l_spread, l_solo, v_spread, v_solo):
     else:
         i = -1
     i_spread = i
-    #solo
+    # solo
     l = l_solo
     v = v_solo
     i = 0
@@ -452,8 +511,9 @@ def k_binary_index(l_spread, l_solo, v_spread, v_solo):
     else:
         i = -1
     i_solo = i
-    #ret
+    # ret
     return [i_spread, i_solo]
+
 
 def k_l_compare(l, v):
     i = 0
@@ -469,20 +529,21 @@ def k_l_compare(l, v):
     else:
         return -1
 
-#merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
+
+# merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
-    #create log for future renderings
+    # create log for future renderings
     concat_log = 'chunks\\concat_log_args_' + str(name) + '__' + str(mod_solo) + '__' + str(c_l) + '__' + str(spread) \
                  + '__' + str(mod_multi) + '__' + str(crop_w) + '__' + str(crop_h) + '.txt'
-    #get root of file name
+    # get root of file name
     og = name
     name = name[:-4]
     input = i
-    #audio
+    # audio
     name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
     name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
     if verbose: print(colored('Preparing audio for video...', 'blue'))
-    #video clip audio
+    # video clip audio
     if not k_xi(name_audio):
         a_name_audio = input['a']
         # clean up audio so program takes loudness of voice into account moreso than other sounds
@@ -495,7 +556,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         render_(output)
     if verbose: print(colored('Importing tailored audio from \"' + name_audio + '\"...', 'blue'))
     a = ffmpeg.input(name_audio)
-    #voice_opt
+    # voice_opt
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', 'blue'))
         a_voice = a.filter("afftdn", nr=12, nt="w", om="o").filter(
@@ -505,7 +566,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         render_(output)
     if verbose: print(colored('Importing optimized audio from \"' + name_audio_voice + '\"...', 'blue'))
     a_voice = ffmpeg.input(name_audio_voice)
-    #import the new voice_opt audio
+    # import the new voice_opt audio
     if verbose: print(colored('Establishing audio files...', 'blue'))
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
@@ -513,15 +574,15 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     movie_a = AudioFileClip(name_audio)
     movie_a_length = movie_a.duration
     a_voices = AudioFileClip(name_audio_voice)
-    #add them to delete list
+    # add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
-    #get subclips in the processing part
+    # get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
     movie_v = VideoFileClip(og)
-    #test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
-    #movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
-    #movie_v.show()
+    # test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
+    # movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
+    # movie_v.show()
     movie_v_duration = movie_v.duration
     duration = None
     try:
@@ -581,31 +642,31 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         list_db_solo = []
         kc = []
         spread_calc = int((spread / 2))
-        #create array of sound levels
+        # create array of sound levels
         for o in range(0, len(chunks_a) - 1):
             c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_ms)
             kc.append(c)
-            #list_db_spread.append(c.sv)
-            #list_db_solo.append(c.v)
+            # list_db_spread.append(c.sv)
+            # list_db_solo.append(c.v)
         # get list stats for pinpointing threshold
         #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
-        kstats = k_stats(kc) #, list_db_spread, list_db_solo)
-        #spread
+        kstats = k_stats(kc)  # , list_db_spread, list_db_solo)
+        # spread
         l_db_spread = kstats[0]
         median_db_spread = kstats[1]
         average_db_spread = kstats[2]
         max_db_spread = kstats[3]
-        #solo
+        # solo
         l_db_solo = kstats[4]
         median_db_solo = kstats[5]
         average_db_solo = kstats[6]
         max_db_solo = kstats[7]
-        #get thresholds
+        # get thresholds
         target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
         thresh_solo = mod_solo * target_db
         target_db = (.7 * average_db_spread) + (.2 * average_db_spread) + (.1 * max_db_spread)
         thresh_spread = mod_multi * target_db
-        #get cutoff values
+        # get cutoff values
         cutoffs = k_binary_index(l_db_spread, l_db_solo, thresh_spread, thresh_solo)
         i_cut_spread = cutoffs[0]
         l_a_spread = sorted(l_db_spread[i_cut_spread:], key=lambda k_chunk: k_chunk.i)
@@ -613,11 +674,11 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         l_a_solo = sorted(l_db_solo[i_cut_solo:], key=lambda k_chunk: k_chunk.i)
         fl = []
         if i_cut_solo < i_cut_spread:
-            #proceed with spread list
+            # proceed with spread list
             l1 = l_a_spread
             l2 = l_a_solo
         else:
-            #proceed with solo list
+            # proceed with solo list
             l1 = l_a_solo
             l2 = l_a_spread
         for o in range(0, len(l1) - 1):
@@ -626,34 +687,35 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
                 fl.append(l1[o])
         # log
         le = len(fl)
-        if(le == 0):
+        if (le == 0):
             print('no values passed')
             return False
         if verbose: print(colored('Building snippets...', 'blue'))
         movie_v_fps = movie_v.fps
         inputs = ''
         sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
-        if(le == 1):
+        if (le == 1):
             print('one value passed')
-        if(le > 1):
+        if (le > 1):
             print('multiple values passed')
             for c in fl[1:]:
                 tmp_sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
                 sub = ffmpeg.concat(sub['v'], sub['a'], tmp_sub['v'], tmp_sub['a'], v=1, a=1)
-        if verbose: print(colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
+        if verbose: print(
+            colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
         fr = sub
-        #p_t = k_round(x / (len(chunks_a) - 1), 5)
-        #avg_p = int(statistics.mean(p_arr))
-        #periods = ''
-        #for o in range(0, avg_p):
+        # p_t = k_round(x / (len(chunks_a) - 1), 5)
+        # avg_p = int(statistics.mean(p_arr))
+        # periods = ''
+        # for o in range(0, avg_p):
         #    periods += '.'
-        #print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
+        # print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
         #                + '\nwith an average length of ' + str(avg_p * chunk_length_s) + 's:'
         #                + '\n' + periods
         #                              , 'blue'))
         print('tecca = ' + str(fr))
     base_name = 'chunks\\processed_output_from_' + name
-    ret = fr #ffmpeg.input(base_name + '.mp4')
+    ret = fr  # ffmpeg.input(base_name + '.mp4')
     movie_height = movie_v.h
     desired_height = crop_h
     movie_width = movie_v.w
@@ -661,8 +723,8 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     scale_factor = min((movie_height / desired_height), (movie_width / desired_width))
     if verbose: print(colored('Resizing video with a scale factor of ' + str(scale_factor) + ', and dimentions w: '
                               + str(desired_width) + ' and h: ' + str(desired_height) + '...', 'blue'))
-    base_v = ret.video.filter('crop', x=1.50*crop_w*scale_factor, y=0*crop_h*scale_factor,
-                              w=crop_w*scale_factor, h=crop_h*scale_factor)
+    base_v = ret.video.filter('crop', x=1.50 * crop_w * scale_factor, y=0 * crop_h * scale_factor,
+                              w=crop_w * scale_factor, h=crop_h * scale_factor)
     base_a = ret.audio.filter("loudnorm").filter("afftdn", nr=8, nt="w", om="o").filter("equalizer", f=7000,
                                                                                         width_type="o", width=5,
                                                                                         g=1).filter("equalizer", f=200,
@@ -672,25 +734,27 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     output_file = 'chunks\\filtered_and_processed_output_from_' + name
     if verbose: print(colored('Writing filtered files...', 'blue'))
     output = ffmpeg.output(base_v, base_a, output_file + '.mp4')
-    #output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
-    #output_a = ffmpeg.output(base_a, output_file + '.wav')
-    #render_(output_v)
-    #render_(output_a)
-    #subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
+    # output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
+    # output_a = ffmpeg.output(base_a, output_file + '.wav')
+    # render_(output_v)
+    # render_(output_a)
+    # subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
     #                + ' -fs 1GB -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
-    #subprocess.call('-c:v copy -c:a aac')
-    #k_remove(output_file + '_2.mp4')
+    # subprocess.call('-c:v copy -c:a aac')
+    # k_remove(output_file + '_2.mp4')
     clips_to_remove.append(output_file + '.mp4')
     clips_to_remove.append(output_file + '.wav')
     return output_file + '.mp4'
 
+
 # make new function that takes the cut times and adds timewarping
 
-#convert a video to an mp4
+# convert a video to an mp4
 def to_mp4(name):
     subprocess.call('ffmpeg -y -i ' + name + ' -fs 1GB -c:v copy -c:a aac ' + name[-4:] + '.mp4')
 
-#create video timestamps
+
+# create video timestamps
 def create_timestamps(name):
     print('fetching timestamps for ' + name)
     cap = cv2.VideoCapture(name)
@@ -711,11 +775,12 @@ def create_timestamps(name):
         print('Frame timestamp from ' + name + ': ' + str(ts))
     t_stamps[name] = timestamps_tmp
 
-#create video list
-def create_video_list(a, ts = False):
+
+# create video list
+def create_video_list(a, ts=False):
     tmp = []
     for name in os.listdir(a):
-        if(os.path.isfile(name)):
+        if (os.path.isfile(name)):
             if verbose: print(colored('Found file \"' + name + '\"', 'blue'))
             name_lower = name.lower()
             name_root = name_lower[:-4]
@@ -730,13 +795,14 @@ def create_video_list(a, ts = False):
                 create_timestamps(name)
     return tmp
 
+
 def get_length(filename):
-  result = subprocess.Popen(["ffprobe", filename], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-  return [x for x in result.stdout.readlines() if "Duration" in x]
+    result = subprocess.Popen(["ffprobe", filename], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return [x for x in result.stdout.readlines() if "Duration" in x]
 
 
-#sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-#with tf.device("/cpu:0"):
-#print("current device = " + str(torch.cuda.current_device()))
-#with torch.cuda.device(1):
+# sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+# with tf.device("/cpu:0"):
+# print("current device = " + str(torch.cuda.current_device()))
+# with torch.cuda.device(1):
 main()
