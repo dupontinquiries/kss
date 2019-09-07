@@ -337,115 +337,49 @@ def k_tf(seconds):
     return ret
 
 
-# There are different ways to do a Quick Sort partition, this implements the
-# Hoare partition scheme. Tony Hoare also created the Quick Sort algorithm.
-def partition_spread(nums, low, high):
-    # We select the middle element to be the pivot. Some implementations select
-    # the first element or the last element. Sometimes the median value becomes
-    # the pivot, or a random one. There are many more strategies that can be
-    # chosen or created.
-    pivot = nums[(low + high) // 2]
-    i = low - 1
-    j = high + 1
-    while True:
-        i += 1
-        while nums[i].sv < pivot.sv:
+def k_partition(sort_list, low, high, fn):
+    i = (low - 1)
+    pivot = sort_list[high]
+    for j in range(low, high):
+        if fn(sort_list[j]) <= fn(pivot):
             i += 1
-
-        j -= 1
-        while nums[j].sv > pivot.sv:
-            j -= 1
-
-        if i >= j:
-            return j
-
-        # If an element at i (on the left of the pivot) is larger than the
-        # element at j (on right right of the pivot), then swap them
-        nums[i], nums[j] = nums[j], nums[i]
+            sort_list[i], sort_list[j] = sort_list[j], sort_list[i]
+    sort_list[i + 1], sort_list[high] = sort_list[high], sort_list[i + 1]
+    return (i + 1)
 
 
-def quick_sort_spread(nums):
-    # Create a helper function that will be called recursively
-    def _quick_sort_spread(items, low, high):
-        if low < high:
-            # This is the index after the pivot, where our lists are split
-            split_index = partition_spread(items, low, high)
-            _quick_sort_spread(items, low, split_index)
-            _quick_sort_spread(items, split_index + 1, high)
-
-    _quick_sort_spread(nums, 0, len(nums) - 1)
-
-
-# There are different ways to do a Quick Sort partition, this implements the
-# Hoare partition scheme. Tony Hoare also created the Quick Sort algorithm.
-def partition_solo(nums, low, high):
-    # We select the middle element to be the pivot. Some implementations select
-    # the first element or the last element. Sometimes the median value becomes
-    # the pivot, or a random one. There are many more strategies that can be
-    # chosen or created.
-    pivot = nums[(low + high) // 2]
-    i = low - 1
-    j = high + 1
-    while True:
-        i += 1
-        while nums[i].v < pivot.v:
-            i += 1
-
-        j -= 1
-        while nums[j].v > pivot.v:
-            j -= 1
-
-        if i >= j:
-            return j
-
-        # If an element at i (on the left of the pivot) is larger than the
-        # element at j (on right right of the pivot), then swap them
-        nums[i], nums[j] = nums[j], nums[i]
+def k_quick_sort(sort_list, low, high, fn):
+    if low < high:
+        pi = k_partition(sort_list, low, high, fn)
+        k_quick_sort(sort_list, low, pi - 1, fn)
+        k_quick_sort(sort_list, pi + 1, high, fn)
+        
+        
+def get_sv(e):
+    return e.sv
 
 
-def quick_sort_solo(nums):
-    # Create a helper function that will be called recursively
-    def _quick_sort_solo(items, low, high):
-        if low < high:
-            # This is the index after the pivot, where our lists are split
-            split_index = partition_spread(items, low, high)
-            _quick_sort_solo(items, low, split_index)
-            _quick_sort_solo(items, split_index + 1, high)
-
-    _quick_sort_solo(nums, 0, len(nums) - 1)
+def get_v(e):
+    return e.v
 
 
-def k_qs(arr, fn):
-    # helper
-    def k_hqs(items, low, high):
-        # split around pivot
-        split = partition(items, low, high)
-        k_hqs(items, low, split)
-        k_hqs(items, split + 1, high)
+def get_ts(e):
+    return e.sv
 
-    # swapping function
-    def partition(nums, low, high):
-        pivot = nums[(low + high) // 2]
-        i = low - 1
-        j = high + 1
-        while True:
-            i += 1
-            while nums[i].v < pivot.v:
-                i += 1
-
-            j -= 1
-            while nums[j].v > pivot.v:
-                j -= 1
-
-            if i >= j:
-                return j
-
+k_splval(l, tr, fn):
+    tmp = l
+    n = 0
+    while fn(tmp[n]) < tr:
+        n++
+    tmp = tmp[n:]
 
 def k_stats(cl, mod_multi, mod_solo):
     # stats
     from operator import itemgetter, attrgetter
-    f_spread = k_qs(cl, getsv)
-    f_solo = k_qs(cl, getV)
+    f_spread = cl
+    k_quick_sort(f_spread, 0, len(f_spread) - 1, get_sv)
+    f_solo = cl
+    k_quick_sort(f_solo, 0, len(f_solo) - 1, get_v)
     # tmp values
     stats_spread = []
     stats_solo = []
@@ -466,11 +400,11 @@ def k_stats(cl, mod_multi, mod_solo):
     thresh_multi = (mean_f_spread * .4) + (median_f_spread * .3) + (max_f_spread * .3)
     thresh_solo = (mean_f_solo * .4) + (median_f_solo * .3) + (max_f_solo * .3)
 
-    rem_spread = k_splval(f_spread, thresh_multi)
-    rem_solo = k_splval(f_solo, thresh_solo)
+    rem_spread = k_splval(f_spread, thresh_multi, get_sv)
+    rem_solo = k_splval(f_solo, thresh_solo, get_v)
 
-    rem_spread = k_qs(rem_spread, get_ts)
-    rem_solo = k_qs(rem_solo, get_ts)
+    k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
+    k_quick_sort(rem_solo, 0, len(rem_solo) - 1, get_ts)
 
     return [{'list_spread': rem_spread,
              'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
