@@ -7,10 +7,11 @@ from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
 from pydub.utils import make_chunks
-from moviepy.editor import *
-import moviepy as moviepy
-from math import *
-import numpy
+#from moviepy.editor import concatenate_videoclips, concatenate_audioclips, VideoFileClip, AudioFileClip
+#from moviepy.editor import *
+# from moviepy import write_videofile
+# from math import *
+# import numpy
 from termcolor import colored
 # import tensorflow-gpu as tf
 import random
@@ -218,7 +219,7 @@ def k_map(a, name):
         return None
     if len(a) == 1:
         inp = ffmpeg.input(b)
-        outp = ffmpeg.output(inp, name)
+        #outp = ffmpeg.output(inp, name)
         inp = VideoFileClip(name)
         return inp
     else:
@@ -256,8 +257,8 @@ def mpy_concat(filenames, output_name):
         mpys_a.append(_a)
         del _v
         del _a
-    v_t = moviepy.editor.concatenate_audioclips(mpys_v)
-    a_t = moviepy.editor.concatenate_videoclips(mpys_a)
+    v_t = concatenate_audioclips(mpys_v)
+    a_t = concatenate_videoclips(mpys_a)
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
 
@@ -353,8 +354,8 @@ def k_quick_sort(sort_list, low, high, fn):
         pi = k_partition(sort_list, low, high, fn)
         k_quick_sort(sort_list, low, pi - 1, fn)
         k_quick_sort(sort_list, pi + 1, high, fn)
-        
-        
+
+
 def get_sv(e):
     return e.sv
 
@@ -366,12 +367,15 @@ def get_v(e):
 def get_ts(e):
     return e.sv
 
-k_splval(l, tr, fn):
+
+def k_splval(l, tr, fn):
     tmp = l
     n = 0
     while fn(tmp[n]) < tr:
-        n++
+        n += 1
     tmp = tmp[n:]
+    return tmp
+
 
 def k_stats(cl, mod_multi, mod_solo):
     # stats
