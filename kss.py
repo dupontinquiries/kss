@@ -2,7 +2,8 @@ from __future__ import unicode_literals
 import statistics
 import cv2
 import ffmpeg
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+from moviepy.video.io.ffmpeg_tools import *
+from moviepy.editor import *
 from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
@@ -262,7 +263,6 @@ def mpy_concat(filenames, output_name):
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
 
-
 def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size):
     base_name = filename[:-4]
     # compress any large files
@@ -272,12 +272,11 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
         return False
     tmp_clip = False
     # get duration
-    try:
-        if verbose: print(colored('Finding length...', 'blue'))
-        tmp_clip = VideoFileClip(filename)
-        l = tmp_clip.duration
-        del tmp_clip
-    except:
+    if verbose: print(colored('Finding length...', 'blue'))
+    tmp_clip = VideoFileClip(filename)
+    l = tmp_clip.duration
+    del tmp_clip
+    if not l > 0:
         console_a = ''
         if not k_xi(filename):
             console_a = ' not'
@@ -377,7 +376,7 @@ def k_splval(l, tr, fn):
     return tmp
 
 
-def k_stats(cl, mod_multi, mod_solo):
+def k_stats(cl):
     # stats
     from operator import itemgetter, attrgetter
     f_spread = cl
@@ -387,14 +386,21 @@ def k_stats(cl, mod_multi, mod_solo):
     # tmp values
     stats_spread = []
     stats_solo = []
-    for c in enumerate(f_spread):
-        stats_spread.append(c.sv)
-    for c in enumerate(f_solo):
-        stats_spread.append(c.v)
+    for c in f_spread:
+        stats_spread.append(get_sv(c)) #harmonic mean does not take negative values
+    for c in f_solo:
+        stats_solo.append(k_round(get_v(c), 0))
+
+    print('{0}\n'.format(stats_spread))
+    print('{0}\n'.format(stats_solo))
+
     # mean
-    mean_f_spread = (statistics.harmonic_mean(stats_spread) * .5) + (statistics.mean(stats_spread) * .5)
-    mean_f_solo = (statistics.harmonic_mean(stats_solo) * .5) + (statistics.mean(stats_solo) * .5)
+    mean_f_spread = (statistics.mean(stats_spread) * 1)# + (statistics.harmonic_mean(stats_spread) * .5)
+    mean_f_solo = (statistics.mean(stats_solo) * 1)# + (statistics.harmonic_mean(stats_solo) * .5)
+
     # median
+    print('len is {0}'.format(len(stats_spread)))
+    print('len is {0}'.format(len(stats_solo)))
     median_f_spread = stats_spread[len(stats_spread) // 2]
     median_f_solo = stats_solo[len(stats_solo) // 2]
     # max
@@ -410,10 +416,8 @@ def k_stats(cl, mod_multi, mod_solo):
     k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
     k_quick_sort(rem_solo, 0, len(rem_solo) - 1, get_ts)
 
-    return [{'list_spread': rem_spread,
-             'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
-             'list_solo': rem_solo,
-             'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
+    return [rem_spread, mean_f_spread, median_f_spread, max_f_spread, \
+             rem_solo, mean_f_solo, median_f_solo, max_f_solo]
 
 
 def k_binary_index(l_spread, l_solo, v_spread, v_solo):
@@ -589,15 +593,21 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         # get list stats for pinpointing threshold
         #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
         kstats = k_stats(kc)  # , list_db_spread, list_db_solo)
+
+        #reference = [{'list_spread': rem_spread,
+        #         'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
+        #         'list_solo': rem_solo,
+        #         'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
+
         # spread
         l_db_spread = kstats[0]
-        median_db_spread = kstats[1]
-        average_db_spread = kstats[2]
+        average_db_spread = kstats[1]
+        median_db_spread = kstats[2]
         max_db_spread = kstats[3]
         # solo
         l_db_solo = kstats[4]
-        median_db_solo = kstats[5]
-        average_db_solo = kstats[6]
+        average_db_solo = kstats[5]
+        median_db_solo = kstats[6]
         max_db_solo = kstats[7]
         # get thresholds
         target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
