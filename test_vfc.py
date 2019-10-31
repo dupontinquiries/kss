@@ -4,6 +4,8 @@ filename = 'footage\\GOPR0174_comp.mp4'
 tmp_clip = mpy.VideoFileClip(filename)
 print(tmp_clip)
 file_length = tmp_clip.duration
+print(file_length)
+print(tmp_clip.reader)
 tmp_clip.reader.close()
 tmp_clip.close()
 print(tmp_clip)

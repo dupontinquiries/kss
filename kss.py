@@ -3,8 +3,8 @@ import statistics
 import cv2
 import ffmpeg
 from moviepy.video.io.ffmpeg_tools import *
-from moviepy import *
-import moviepy.editor as mpy
+import moviepy
+import moviepy.editor as mpye
 from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
@@ -144,15 +144,28 @@ def read_in_chunks(file_object, chunk_size=1024):
         yield data
 
 
+def getLength(input_video):
+    result = subprocess \
+        .Popen('ffprobe -i input_video -show_entries format=duration -v quiet -of csv="p=0"', \
+        stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    output = result.communicate()
+    return output[0]
+
+
 def read_in_ffmpeg_chunks(filename, max_chunk_size):
     file_length = 0
     if verbose:
         print(colored('Finding length...', 'blue'))
-    tmp_clip = mpy.VideoFileClip(filename)
-    file_length = tmp_clip.duration
-    tmp_clip.reader.close()
-    tmp_clip.close()
-    del tmp_clip
+    #tmp_clip = mpye.VideoFileClip(filename)
+    #file_length = tmp_clip.duration
+    #cmd = 'ffprobe -v error -select_streams v:0 -show_entries stream=duration \
+    #    -of default=noprint_wrappers=1:nokey=1 "{}"' \
+    #    .format(filename)
+    #subprocess.call(cmd)
+    #tmp_clip.reader.close()
+    #tmp_clip.close()
+    #del tmp_clip
+    file_length = getLength(filename)
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
@@ -162,7 +175,8 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         print("t_s = " + str(t_s) + "; " + "t_f = " + str(t_f) + "; " + "d = " + str(delta) + "; ")
         if file_length - t_f <= 0:
             yield False
-        name = str("moviepy_subclip_" + str(t_s) + "_" + str(t_f) + "_from_" + str(filename))
+        name = 'moviepy_subclip_{0}_{1}_from_{2}'\
+            .format(t_s, t_f, filename)
         # generates a subclip to avoid memory caps
         # saves time on reruns to skip if the file already exists
         if not k_xi(name):
@@ -269,7 +283,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     tmp_clip = False
     # get duration
     if verbose: print(colored('Finding length...', 'blue'))
-    tmp_clip = mpy.VideoFileClip(filename)
+    tmp_clip = mpye.VideoFileClip(filename)
     l = tmp_clip.duration
     del tmp_clip
     if not l > 0:
@@ -509,15 +523,15 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
     if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
-    movie_a = mpy.AudioFileClip(name_audio)
+    movie_a = mpye.AudioFileClip(name_audio)
     movie_a_length = movie_a.duration
-    a_voices = mpy.AudioFileClip(name_audio_voice)
+    a_voices = mpye.AudioFileClip(name_audio_voice)
     # add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     # get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
-    movie_v = mpy.VideoFileClip(og)
+    movie_v = mpye.VideoFileClip(og)
     # test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
     # movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
     # movie_v.show()
