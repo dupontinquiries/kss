@@ -23,14 +23,18 @@ def k_get(e):
     return e
 
 
+def kBinaryIndex(l, cutoff, fn):
+    l = []
+    
+    return False
+
+
 lst = []
 
 start = datetime.now()
 
 for i in range(1000000):
     lst.append(random.randint(0, 1000000))
-
-lst_reg = lst
 
 end = datetime.now()
 print('time to generate: {0}'.format(end - start))
@@ -41,7 +45,6 @@ if False:
         elements = int(input("Enter an element"))
         lst.append(elements)
 
-#quick sort
 start = datetime.now()
 
 low = 0
@@ -49,12 +52,19 @@ high = len(lst) - 1
 k_quick_sort(lst, low, high, k_get)
 
 end = datetime.now()
-print('time to quick sort: {0}'.format(end - start))
+print('time to sort: {0}'.format(end - start))
 
-#reg sort
+print('\n\nSearching...\n\n')
+
+cutoff = 9000
+
 start = datetime.now()
 
-end = datetime.now()
-print('time to regular sort: {0}'.format(end - start))
+kBI = kBinaryIndex(lst, cutoff, k_get)
 
-#print(lst)
+end = datetime.now()
+print('time to binary index: {0}'.format(end - start))
+
+print(kBI)
+
+print('Original list length: {0}\nNew list length: {1}'.format(len(lst), len(kBI)))

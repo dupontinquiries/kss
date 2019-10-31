@@ -1,6 +1,6 @@
 from moviepy import *
 import moviepy.editor as mpy
-filename = 'footage\\GP010192_comp.mp4'
+filename = 'footage\\GOPR0174_comp.mp4'
 tmp_clip = mpy.VideoFileClip(filename)
 print(tmp_clip)
 file_length = tmp_clip.duration

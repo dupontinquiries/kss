@@ -48,7 +48,7 @@ DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
 DEFAULT_MAX_CHUNK_SIZE = 1.2
 verbose = True
-cleanup = False
+cleanup = True
 dir = ''
 
 
@@ -150,11 +150,9 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         print(colored('Finding length...', 'blue'))
     tmp_clip = mpy.VideoFileClip(filename)
     file_length = tmp_clip.duration
-    #tmp_clip.reader.close()
+    tmp_clip.reader.close()
     tmp_clip.close()
-    print(tmp_clip)
     del tmp_clip
-    print('Made it KSI')
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
@@ -170,7 +168,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         if not k_xi(name):
             # export subclip
             cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
-                .format(filename, t_s, min(delta, l - t_s), name)
+                .format(filename, t_s, min(delta, file_length - t_s), name)
             print('[cmd] ~ {0}'.format(cmd))
             subprocess.call(cmd)
             clips_to_remove.append(name)
@@ -511,15 +509,15 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
     if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
-    movie_a = AudioFileClip(name_audio)
+    movie_a = mpy.AudioFileClip(name_audio)
     movie_a_length = movie_a.duration
-    a_voices = AudioFileClip(name_audio_voice)
+    a_voices = mpy.AudioFileClip(name_audio_voice)
     # add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     # get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
-    movie_v = VideoFileClip(og)
+    movie_v = mpy.VideoFileClip(og)
     # test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
     # movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
     # movie_v.show()

@@ -6,6 +6,7 @@ class k_chunk:
     data = []
 
     def __init__(self, i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, dud=False):
+        self.data = list()
         self.i = i
         if dud:
             self.v = 0
@@ -17,8 +18,8 @@ class k_chunk:
         self.t_f = t_f
         self.d = t_f - t_s
 
-        data.append(v)
-        data.append(sv)
+        self.data.append(self.v)
+        self.data.append(self.sv)
 
 
     def gen_sv(self, sl, sr, l, i):
