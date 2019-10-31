@@ -3,8 +3,7 @@ import statistics
 import cv2
 import ffmpeg
 from moviepy.video.io.ffmpeg_tools import *
-from moviepy import *
-import moviepy.editor as mpy
+from moviepy.editor import *
 from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
@@ -145,16 +144,19 @@ def read_in_chunks(file_object, chunk_size=1024):
 
 
 def read_in_ffmpeg_chunks(filename, max_chunk_size):
-    file_length = 0
-    if verbose:
-        print(colored('Finding length...', 'blue'))
-    tmp_clip = mpy.VideoFileClip(filename)
-    file_length = tmp_clip.duration
-    #tmp_clip.reader.close()
-    tmp_clip.close()
-    print(tmp_clip)
-    del tmp_clip
-    print('Made it KSI')
+    try:
+        if verbose: print(colored('Finding length...', 'blue'))
+        tmp_clip = VideoFileClip(filename)
+        l = tmp_clip.duration
+        del tmp_clip
+    except:
+        console_a = ''
+        if not k_xi(filename):
+            console_a = ' not'
+        print(colored('An error was encountered while opening \"' + filename + '\"!  The file does' + console_a
+                      + ' seem to exist.', 'red'))
+        sys.exit(0)
+    file_length = l
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
@@ -165,13 +167,13 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         if file_length - t_f <= 0:
             yield False
         name = str("moviepy_subclip_" + str(t_s) + "_" + str(t_f) + "_from_" + str(filename))
-        # generates a subclip to avoid memory caps
-        # saves time on reruns to skip if the file already exists
         if not k_xi(name):
             # export subclip
-            cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
-                .format(filename, t_s, min(delta, l - t_s), name)
-            print('[cmd] ~ {0}'.format(cmd))
+            cmd = ['ffmpeg', "-y",
+                   "-i", filename,
+                   "-ss", "%0.2f" % t_s,
+                   "-t", "%0.2f" % (min(delta, l - t_s)),
+                   "-vcodec", "h264", "-acodec", "aac", name]
             subprocess.call(cmd)
             clips_to_remove.append(name)
         else:
@@ -271,7 +273,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     tmp_clip = False
     # get duration
     if verbose: print(colored('Finding length...', 'blue'))
-    tmp_clip = mpy.VideoFileClip(filename)
+    tmp_clip = VideoFileClip(filename)
     l = tmp_clip.duration
     del tmp_clip
     if not l > 0:
@@ -489,7 +491,7 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', 'blue'))
-        a_name_audio = a_name_audio.filter('highpass', 400).filter("lowpass", 3400).filter("loudnorm")
+        a_name_audio = a_name_audio.filter('highpass', 35).filter("lowpass", 18000).filter("loudnorm")
         # export clip audio
         if verbose: print(colored('Writing tailored audio...', 'blue'))
         output = ffmpeg.output(a_name_audio, name_audio)
@@ -585,9 +587,9 @@ def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, 
         # create array of sound levels
         for o in range(0, len(chunks_a) - 1):
             c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_ms)
-            print('Chunk created: {0}'.format(c))
             kc.append(c)
-        exit()
+            # list_db_spread.append(c.sv)
+            # list_db_solo.append(c.v)
         # get list stats for pinpointing threshold
         #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
         kstats = k_stats(kc)  # , list_db_spread, list_db_solo)

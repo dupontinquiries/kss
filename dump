@@ -1,0 +1,7 @@
+except:
+      console_a = ''
+      if not k_xi(filename):
+          console_a = ' not'
+      print(colored('An error was encountered while opening \"' + filename + '\"!  The file does' + console_a
+                    + ' seem to exist.', 'red'))
+      sys.exit(0)
