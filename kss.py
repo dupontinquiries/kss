@@ -144,28 +144,24 @@ def read_in_chunks(file_object, chunk_size=1024):
         yield data
 
 
-def getLength(input_video):
+def getLength(filename):
+    cmd = 'ffprobe "{0}" -show_format ' \
+        .format(filename)
     result = subprocess \
-        .Popen('ffprobe -i input_video -show_entries format=duration -v quiet -of csv="p=0"', \
+        .Popen(cmd, \
         stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    output = result.communicate()
-    return output[0]
+    results = result.communicate()
+    #print(results)
+    file_length = float(str(results).split('nduration')[1].split('\\')[0].replace('=', ''))
+    return file_length
 
 
 def read_in_ffmpeg_chunks(filename, max_chunk_size):
     file_length = 0
     if verbose:
         print(colored('Finding length...', 'blue'))
-    #tmp_clip = mpye.VideoFileClip(filename)
-    #file_length = tmp_clip.duration
-    #cmd = 'ffprobe -v error -select_streams v:0 -show_entries stream=duration \
-    #    -of default=noprint_wrappers=1:nokey=1 "{}"' \
-    #    .format(filename)
-    #subprocess.call(cmd)
-    #tmp_clip.reader.close()
-    #tmp_clip.close()
-    #del tmp_clip
     file_length = getLength(filename)
+    print('d = {0}'.format(file_length))
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
@@ -483,36 +479,38 @@ def k_l_compare(l, v):
 
 
 # merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
-def process_audio_loudness_over_time(i, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
+def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     # create log for future renderings
     concat_log = 'chunks\\concat_log_args_' + str(name) + '__' + str(mod_solo) + '__' + str(c_l) + '__' + str(spread) \
                  + '__' + str(mod_multi) + '__' + str(crop_w) + '__' + str(crop_h) + '.txt'
     # get root of file name
     og = name
     name = name[:-4]
-    input = i
     # audio
     name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
     name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
     if verbose: print(colored('Preparing audio for video...', 'blue'))
     # video clip audio
     if not k_xi(name_audio):
-        a_name_audio = input['a']
+        a_name_audio = input.audio.filter("afftdn", nr=6, nt="w", om="o") \
+            .filter('highpass', 20).filter("lowpass", 19000) \
+            .filter("loudnorm").filter("afftdn", nr=2, nt="w", om="o")
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', 'blue'))
-        a_name_audio = a_name_audio.filter('highpass', 400).filter("lowpass", 3400).filter("loudnorm")
         # export clip audio
-        if verbose: print(colored('Writing tailored audio...', 'blue'))
         output = ffmpeg.output(a_name_audio, name_audio)
+        if verbose: print(colored('Writing tailored audio...', 'blue'))
         render_(output)
     if verbose: print(colored('Importing tailored audio from \"' + name_audio + '\"...', 'blue'))
     a = ffmpeg.input(name_audio)
     # voice_opt
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', 'blue'))
-        a_voice = a.filter("afftdn", nr=12, nt="w", om="o").filter(
-            'highpass', 200).filter("lowpass", 8000).filter("loudnorm")
+        a_voice = a.audio.filter("afftdn", nr=6, nt="w", om="o") \
+            .filter('highpass', 400) \
+            .filter("lowpass", 3400).filter("loudnorm") \
+            .filter("afftdn", nr=2, nt="w", om="o")
         # export voice_optimized audio
         output = ffmpeg.output(a_voice, name_audio_voice)
         render_(output)
