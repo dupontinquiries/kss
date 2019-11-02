@@ -86,6 +86,7 @@ def main():  # call is at the end
         print(colored('The directory \"' + dir + '\" was not found!', 'red'))
         sys.exit(0)
     os.chdir(dir)
+    print('dir = {0}'.format(os.getcwd()))
     if verbose: print(colored('root: ' + str(dir), 'blue'))
     if verbose: print(colored('Finding all video files...', 'blue'))
     vid_arr = create_video_list(dir,
@@ -521,7 +522,13 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
     if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
+
+
     movie_a = mpye.AudioFileClip(name_audio)
+    movie_a.close()
+    print(movie_a)
+    exit()
+
     movie_a_length = movie_a.duration
     a_voices = mpye.AudioFileClip(name_audio_voice)
     # add them to delete list

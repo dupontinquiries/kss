@@ -4,7 +4,7 @@ import cv2
 import ffmpeg
 from moviepy.video.io.ffmpeg_tools import *
 import moviepy
-import moviepy.editor as mpye
+from moviepy.editor import *
 from os.path import dirname, abspath
 import subprocess
 from pydub import AudioSegment
@@ -26,26 +26,23 @@ def render_(component):
 
 FFMPEG_BIN = 'ffmpeg'
 dir = dirname(abspath(__file__)) + "\\footage"
+os.chdir(dir)
 chunked_clips = []
 chunked_timestamps = []
 clips_to_remove = []
 
 verbose = True
 
-name = 'GOPR0213_comp'
-input = ffmpeg.input(name + '.mp4')
+test_file = 'chunks\\a.wav'
 
+name = 'moviepy_subclip_0_72.0_from_GOPR0174_comp'
 name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
-name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
-if verbose: print(colored('Preparing audio for video...', 'blue'))
-# video clip audio
-a_name_audio = input['a']
-print(a_name_audio)
-# clean up audio so program takes loudness of voice into account moreso than other sounds
-# clean up audio of final video
-if verbose: print(colored('Preparing tailored audio...', 'blue'))
-a_name_audio = a_name_audio.filter("afftdn", nr=12, nt="w", om="o").filter('highpass', 400).filter("lowpass", 3400).filter("loudnorm").filter("afftdn", nr=12, nt="w", om="o")
+input = ffmpeg.input(name_audio)
+print(input)
 
-if verbose: print(colored('Writing tailored audio...', 'blue'))
-output = ffmpeg.output(a_name_audio, name_audio)
-render_(output)
+movie_a_fc = AudioSegment.from_wav(test_file)
+print(movie_a_fc)
+
+mpy = AudioFileClip(test_file)
+mpy.close()
+print(mpy)
