@@ -13,3 +13,56 @@ except:
         #cmd = 'ffprobe -v error -select_streams v:0 -show_entries stream=duration \
         #    -of default=noprint_wrappers=1:nokey=1 "{}"' \
             #ffprobe "GOPR0213_comp.mp4" -show_format 2>&1
+
+
+
+            def k_binary_index(l_spread, l_solo, v_spread, v_solo):
+                # spread
+                l = l_spread
+                v = v_spread
+                i = 0
+                j = len(l) - 1
+                while i != j + 1:
+                    m = (i + j) // 2
+                    if l[m] < v:
+                        i = m + 1
+                    else:
+                        j = m - 1
+                if 0 <= i < len(l) and l(i) == v:
+                    i = i
+                else:
+                    i = -1
+                i_spread = i
+                # solo
+                l = l_solo
+                v = v_solo
+                i = 0
+                j = len(l) - 1
+                while i != j + 1:
+                    m = (i + j) // 2
+                    if l[m] < v:
+                        i = m + 1
+                    else:
+                        j = m - 1
+                if 0 <= i < len(l) and l(i) == v:
+                    i = i
+                else:
+                    i = -1
+                i_solo = i
+                # ret
+                return [i_spread, i_solo]
+
+
+            def k_l_compare(l, v):
+                i = 0
+                j = len(l) - 1
+                while i != j + 1:
+                    m = (i + j) // 2
+                    if l[m] < v:
+                        i = m + 1
+                    else:
+                        j = m - 1
+                if 0 <= i < len(l) and l(i) == v:
+                    return i
+                else:
+                    return -1

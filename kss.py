@@ -40,13 +40,14 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = 0.7
+DEFAULT_THRESHOLD = .3
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 2
-DEFAULT_REACH_THRESH = 0.7
+DEFAULT_REACH_THRESH = .3
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = 1.2
+DEFAULT_MAX_CHUNK_SIZE = 20 #1.2, 3.2, 10.2
+DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = True
 cleanup = True
 dir = ''
@@ -66,7 +67,7 @@ print(colored('Session ' + sessionId + ' is running...'))
 
 
 def main():  # call is at the end
-    # create actually variables
+    # create actual variables
     THRESHOLD = DEFAULT_THRESHOLD
     PERIOD = DEFAULT_PERIOD
     REACH_ITER = DEFAULT_REACH_ITER
@@ -371,112 +372,101 @@ def get_v(e):
 
 
 def get_ts(e):
-    return e.sv
+    return e.t_s
 
 
 def k_splval(l, tr, fn):
-    tmp = l
+    tmp = l.copy()
     n = 0
-    while fn(tmp[n]) < tr:
+    while fn(tmp[n]) < tr and n < len(l) - 1:
         n += 1
-    tmp = tmp[n:]
-    return tmp
+    return tmp[n:]
+
+
+def lSum(l, fn):
+    sum = 0
+    for o in l:
+        sum += fn(o)
+    return sum
+
+
+def medianOf(l, fn):
+    l2 = []
+    for o in l:
+        l2.append(fn(o))
+    return statistics.median(l2)
 
 
 def k_stats(cl):
+    from datetime import datetime
     # stats
-    from operator import itemgetter, attrgetter
-    f_spread = cl
+    f_spread = cl.copy()
+    start = datetime.now()
     k_quick_sort(f_spread, 0, len(f_spread) - 1, get_sv)
-    f_solo = cl
+    end = datetime.now()
+    if verbose: print('time to sort by spread values: {0}'.format(end - start))
+    f_solo = cl.copy()
+    start = datetime.now()
     k_quick_sort(f_solo, 0, len(f_solo) - 1, get_v)
-    # tmp values
-    stats_spread = []
-    stats_solo = []
-    for c in f_spread:
-        stats_spread.append(get_sv(c)) #harmonic mean does not take negative values
-    for c in f_solo:
-        stats_solo.append(k_round(get_v(c), 0))
+    end = datetime.now()
+    if verbose: print('time to sort by chunk volume: {0}'.format(end - start))
 
-    print('{0}\n'.format(stats_spread))
-    print('{0}\n'.format(stats_solo))
+    #avg
+    start = datetime.now()
+    sums = (lSum(cl, get_v), lSum(cl, get_sv))
+    ln = len(cl)
+    averages = (sums[0]/ln, sums[1]/ln)
+    end = datetime.now()
+    if verbose: print('time to generate averages: {0}'.format(end - start))
+    if verbose: print('averages = {0}'.format(averages))
 
-    # mean
-    mean_f_spread = (statistics.mean(stats_spread) * 1)# + (statistics.harmonic_mean(stats_spread) * .5)
-    mean_f_solo = (statistics.mean(stats_solo) * 1)# + (statistics.harmonic_mean(stats_solo) * .5)
+    #median
+    start = datetime.now()
+    medians = (f_solo[min(len(f_solo), len(f_solo) // 2)], \
+        f_spread[min(len(f_spread), len(f_spread) // 2)])
+    end = datetime.now()
+    if verbose: print('time to generate medians: {0}'.format(end - start))
+    if verbose: print('medians = {0}'.format(medians))
 
-    # median
-    print('len is {0}'.format(len(stats_spread)))
-    print('len is {0}'.format(len(stats_solo)))
-    median_f_spread = stats_spread[len(stats_spread) // 2]
-    median_f_solo = stats_solo[len(stats_solo) // 2]
-    # max
-    max_f_spread = stats_spread[-1]
-    max_f_solo = stats_solo[-1]
+    c_medians = (medianOf(cl, get_v), medianOf(cl, get_sv))
+    if verbose: print('calculated medians = {0}'.format(c_medians))
 
-    thresh_multi = (mean_f_spread * .4) + (median_f_spread * .3) + (max_f_spread * .3)
-    thresh_solo = (mean_f_solo * .4) + (median_f_solo * .3) + (max_f_solo * .3)
+    start = datetime.now()
+    maxes = (f_solo[-1], f_spread[-1])
+    end = datetime.now()
+    if verbose: print('time to generate maxes: {0}'.format(end - start))
+    if verbose: print('maxes = {0}'.format(maxes))
 
-    rem_spread = k_splval(f_spread, thresh_multi, get_sv)
-    rem_solo = k_splval(f_solo, thresh_solo, get_v)
+    start = datetime.now()
+    w = k_chunk(0, None, 0, 0, 0, 0, True).DEFAULT_FLOOR
+    thresholds = \
+    (DEFAULT_THRESHOLD * ((averages[0] * .3) + (medians[0].v * .4) + (maxes[0].v * .3)), \
+    DEFAULT_REACH_THRESH * ((averages[1] * .3) + (medians[1].sv * .4) + (maxes[1].sv * .3)))
+    end = datetime.now()
+    if verbose: print('time to generate thresholds: {0}'.format(end - start))
+    if verbose: print('thresholds = {0}'.format(thresholds))
 
-    k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
+    start = datetime.now()
+    rem_solo = k_splval(f_solo, thresholds[0], get_ts)
+    rem_spread = k_splval(f_spread, thresholds[1], get_ts)
+    end = datetime.now()
+    if verbose: print('time to generate trimmed lists: {0}'.format(end - start))
+    if verbose: print('len(solo) = {0}\nlen(rem_solo) = {1}\npercentage = {2:.3f}' \
+        .format(len(f_solo), len(rem_solo), len(rem_solo) / len(f_solo)))
+    if verbose: print('len(spread) = {0}\nlen(rem_spread) = {1}\npercentage = {2:.3f}' \
+        .format(len(f_spread), len(rem_spread), len(rem_spread) / len(f_spread)))
+
     k_quick_sort(rem_solo, 0, len(rem_solo) - 1, get_ts)
+    k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
+    #if verbose: print('ordered solo list:\n{0}\nordered spread list:\n{1}' \
+    #    .format(rem_solo, rem_spread))
 
-    return [rem_spread, mean_f_spread, median_f_spread, max_f_spread, \
-             rem_solo, mean_f_solo, median_f_solo, max_f_solo]
+    #exit()
+    # TODO:
+    # make dictionary of values anmd pass nack to parent function
+    # add recursive tuning loop that can adjust threshold value by abs(.1 * floor) value
 
-
-def k_binary_index(l_spread, l_solo, v_spread, v_solo):
-    # spread
-    l = l_spread
-    v = v_spread
-    i = 0
-    j = len(l) - 1
-    while i != j + 1:
-        m = (i + j) // 2
-        if l[m] < v:
-            i = m + 1
-        else:
-            j = m - 1
-    if 0 <= i < len(l) and l(i) == v:
-        i = i
-    else:
-        i = -1
-    i_spread = i
-    # solo
-    l = l_solo
-    v = v_solo
-    i = 0
-    j = len(l) - 1
-    while i != j + 1:
-        m = (i + j) // 2
-        if l[m] < v:
-            i = m + 1
-        else:
-            j = m - 1
-    if 0 <= i < len(l) and l(i) == v:
-        i = i
-    else:
-        i = -1
-    i_solo = i
-    # ret
-    return [i_spread, i_solo]
-
-
-def k_l_compare(l, v):
-    i = 0
-    j = len(l) - 1
-    while i != j + 1:
-        m = (i + j) // 2
-        if l[m] < v:
-            i = m + 1
-        else:
-            j = m - 1
-    if 0 <= i < len(l) and l(i) == v:
-        return i
-    else:
-        return -1
+    return (rem_solo, thresholds[0], rem_spread, thresholds[1])
 
 
 # merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
@@ -492,10 +482,17 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
     if verbose: print(colored('Preparing audio for video...', 'blue'))
     # video clip audio
+    #set values for treatment type
+    highpass = 80
+    lowpass = 1200
+    if DEFAULT_TREATMENT == 'music':
+        highpass = 0
+        lowpass = 20000
     if not k_xi(name_audio):
-        a_name_audio = input.audio.filter("afftdn", nr=6, nt="w", om="o") \
-            .filter('highpass', 20).filter("lowpass", 19000) \
-            .filter("loudnorm").filter("afftdn", nr=2, nt="w", om="o")
+        a_name_audio = input.audio \
+            .filter("afftdn", nr=6, nt="w", om="o") \
+            .filter("afftdn", nr=2, nt="w", om="o") \
+            .filter("loudnorm")
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', 'blue'))
@@ -508,10 +505,12 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     # voice_opt
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', 'blue'))
-        a_voice = a.audio.filter("afftdn", nr=6, nt="w", om="o") \
-            .filter('highpass', 400) \
-            .filter("lowpass", 3400).filter("loudnorm") \
-            .filter("afftdn", nr=2, nt="w", om="o")
+        a_voice = a.audio \
+            .filter("afftdn", nr=6, nt="w", om="o") \
+            .filter('highpass', highpass) \
+            .filter("lowpass", lowpass) \
+            .filter("afftdn", nr=2, nt="w", om="o") \
+            .filter("loudnorm")
         # export voice_optimized audio
         output = ffmpeg.output(a_voice, name_audio_voice)
         render_(output)
@@ -525,18 +524,28 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
 
 
     movie_a = mpye.AudioFileClip(name_audio)
-    movie_a.close()
-    print(movie_a)
-    exit()
+    try:
+        movie_a.close()
+        movie_a.reader.close()
+    except:
+        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', 'red'))
+    #print(movie_a)
+    #exit()
 
     movie_a_length = movie_a.duration
     a_voices = mpye.AudioFileClip(name_audio_voice)
+    try:
+        a_voices.close()
+        a_voices.reader.close()
+    except:
+        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', 'red'))
     # add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     # get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
     movie_v = mpye.VideoFileClip(og)
+    movie_v.close()
     # test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
     # movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
     # movie_v.show()
@@ -601,53 +610,56 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         spread_calc = int((spread / 2))
         # create array of sound levels
         for o in range(0, len(chunks_a) - 1):
-            c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_ms)
-            print('Chunk created: {0}'.format(c))
+            #i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, dud=False
+            c = k_chunk(o, chunks_a, spread_calc // 2, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_s)
+            #print('Chunk created: {0}'.format(c))
             kc.append(c)
-        exit()
         # get list stats for pinpointing threshold
-        #    k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
-        kstats = k_stats(kc)  # , list_db_spread, list_db_solo)
+        # k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
+        rem_solo, thresh_solo, rem_spread, thresh_spread = k_stats(kc)
+
+        exit()
 
         #reference = [{'list_spread': rem_spread,
         #         'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
         #         'list_solo': rem_solo,
         #         'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
 
-        # spread
-        l_db_spread = kstats[0]
-        average_db_spread = kstats[1]
-        median_db_spread = kstats[2]
-        max_db_spread = kstats[3]
-        # solo
-        l_db_solo = kstats[4]
-        average_db_solo = kstats[5]
-        median_db_solo = kstats[6]
-        max_db_solo = kstats[7]
-        # get thresholds
-        target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
-        thresh_solo = mod_solo * target_db
-        target_db = (.7 * average_db_spread) + (.2 * average_db_spread) + (.1 * max_db_spread)
-        thresh_spread = mod_multi * target_db
-        # get cutoff values
-        cutoffs = k_binary_index(l_db_spread, l_db_solo, thresh_spread, thresh_solo)
-        i_cut_spread = cutoffs[0]
-        l_a_spread = sorted(l_db_spread[i_cut_spread:], key=lambda k_chunk: k_chunk.i)
-        i_cut_solo = cutoffs[1]
-        l_a_solo = sorted(l_db_solo[i_cut_solo:], key=lambda k_chunk: k_chunk.i)
-        fl = []
-        if i_cut_solo < i_cut_spread:
-            # proceed with spread list
-            l1 = l_a_spread
-            l2 = l_a_solo
-        else:
-            # proceed with solo list
-            l1 = l_a_solo
-            l2 = l_a_spread
-        for o in range(0, len(l1) - 1):
-            index = k_l_compare(l2, l1[o])
-            if index != -1:
-                fl.append(l1[o])
+
+        if False:
+            l_db_spread = kstats[0]
+            average_db_spread = kstats[1]
+            median_db_spread = kstats[2]
+            max_db_spread = kstats[3]
+            # solo
+            l_db_solo = kstats[4]
+            average_db_solo = kstats[5]
+            median_db_solo = kstats[6]
+            max_db_solo = kstats[7]
+            # get thresholds
+            target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
+            thresh_solo = mod_solo * target_db
+            target_db = (.7 * average_db_spread) + (.2 * average_db_spread) + (.1 * max_db_spread)
+            thresh_spread = mod_multi * target_db
+            # get cutoff values
+            cutoffs = k_binary_index(l_db_spread, l_db_solo, thresh_spread, thresh_solo)
+            i_cut_spread = cutoffs[0]
+            l_a_spread = sorted(l_db_spread[i_cut_spread:], key=lambda k_chunk: k_chunk.i)
+            i_cut_solo = cutoffs[1]
+            l_a_solo = sorted(l_db_solo[i_cut_solo:], key=lambda k_chunk: k_chunk.i)
+            fl = []
+            if i_cut_solo < i_cut_spread:
+                # proceed with spread list
+                l1 = l_a_spread
+                l2 = l_a_solo
+            else:
+                # proceed with solo list
+                l1 = l_a_solo
+                l2 = l_a_spread
+            for o in range(0, len(l1) - 1):
+                index = k_l_compare(l2, l1[o])
+                if index != -1:
+                    fl.append(l1[o])
         # log
         le = len(fl)
         if (le == 0):

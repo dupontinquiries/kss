@@ -1,9 +1,10 @@
 class k_chunk:
 
-    DEFAULT_FLOOR = -1000
+    DEFAULT_FLOOR = -250
     v = 0
-    vs = 0
+    sv = 0
     data = []
+    timestamp = None
 
     def __init__(self, i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, dud=False):
         self.data = list()
@@ -21,6 +22,8 @@ class k_chunk:
         self.data.append(self.v)
         self.data.append(self.sv)
 
+        self.timestamp = (self.t_s, self.t_f)
+
 
     def gen_sv(self, sl, sr, l, i):
         t = 0
@@ -29,7 +32,7 @@ class k_chunk:
             add = self.floor_out(l[o].dBFS, self.DEFAULT_FLOOR)
             t += add
             n += 1
-        avg = t // n
+        avg = t / n
         return avg
 
 
@@ -41,7 +44,7 @@ class k_chunk:
 
 
     def __repr__(self):
-        return repr(('[CHUNK]' + 'v: ' + str(self.v) + ' sv: ' + str(self.sv)))
+        return repr('[CHUNK] @ {0}, v = {1}, sv = {2}'.format(self.timestamp, self.v, self.sv))
 
 
     def __setitem__(self, n, data):
@@ -49,7 +52,7 @@ class k_chunk:
 
 
     def __getitem__(self, n):
-          return data._floors[n]
+          return self.data[n]
 
 
     def v():
@@ -58,3 +61,7 @@ class k_chunk:
 
     def sv():
         return self.sv
+
+
+    def t():
+        return (self.t_s, self.t_f)
