@@ -40,10 +40,10 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = .3
+DEFAULT_THRESHOLD = .9
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 2
-DEFAULT_REACH_THRESH = .3
+DEFAULT_REACH_THRESH = .9
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
 DEFAULT_MAX_CHUNK_SIZE = 20 #1.2, 3.2, 10.2
@@ -447,8 +447,8 @@ def k_stats(cl):
     if verbose: print('thresholds = {0}'.format(thresholds))
 
     start = datetime.now()
-    rem_solo = k_splval(f_solo, thresholds[0], get_ts)
-    rem_spread = k_splval(f_spread, thresholds[1], get_ts)
+    rem_solo = k_splval(f_solo.copy(), thresholds[0], get_ts)
+    rem_spread = k_splval(f_spread.copy(), thresholds[1], get_ts)
     end = datetime.now()
     if verbose: print('time to generate trimmed lists: {0}'.format(end - start))
     if verbose: print('len(solo) = {0}\nlen(rem_solo) = {1}\npercentage = {2:.3f}' \
@@ -618,53 +618,22 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         # k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
         rem_solo, thresh_solo, rem_spread, thresh_spread = k_stats(kc)
 
-        exit()
+        #m = min(len(rem_solo), len(rem_spread))
+
+        if len(rem_solo) < 1:
+            print('no values passed')
+            return False
+
+        #rem_solo = rem_solo[:m]
+        #rem_spread = rem_spread[:m]
+        #exit()
 
         #reference = [{'list_spread': rem_spread,
         #         'mean_spread': mean_f_spread, 'median_spread': median_f_spread, 'max_spread': max_f_spread,
         #         'list_solo': rem_solo,
         #         'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
 
-
-        if False:
-            l_db_spread = kstats[0]
-            average_db_spread = kstats[1]
-            median_db_spread = kstats[2]
-            max_db_spread = kstats[3]
-            # solo
-            l_db_solo = kstats[4]
-            average_db_solo = kstats[5]
-            median_db_solo = kstats[6]
-            max_db_solo = kstats[7]
-            # get thresholds
-            target_db = ((.5 * median_db_solo) + (.4 * average_db_solo) + (.1 * max_db_solo))
-            thresh_solo = mod_solo * target_db
-            target_db = (.7 * average_db_spread) + (.2 * average_db_spread) + (.1 * max_db_spread)
-            thresh_spread = mod_multi * target_db
-            # get cutoff values
-            cutoffs = k_binary_index(l_db_spread, l_db_solo, thresh_spread, thresh_solo)
-            i_cut_spread = cutoffs[0]
-            l_a_spread = sorted(l_db_spread[i_cut_spread:], key=lambda k_chunk: k_chunk.i)
-            i_cut_solo = cutoffs[1]
-            l_a_solo = sorted(l_db_solo[i_cut_solo:], key=lambda k_chunk: k_chunk.i)
-            fl = []
-            if i_cut_solo < i_cut_spread:
-                # proceed with spread list
-                l1 = l_a_spread
-                l2 = l_a_solo
-            else:
-                # proceed with solo list
-                l1 = l_a_solo
-                l2 = l_a_spread
-            for o in range(0, len(l1) - 1):
-                index = k_l_compare(l2, l1[o])
-                if index != -1:
-                    fl.append(l1[o])
         # log
-        le = len(fl)
-        if (le == 0):
-            print('no values passed')
-            return False
         if verbose: print(colored('Building snippets...', 'blue'))
         movie_v_fps = movie_v.fps
         inputs = ''
