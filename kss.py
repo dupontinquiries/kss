@@ -40,13 +40,13 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = .9
+DEFAULT_THRESHOLD = 1.0
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 2
-DEFAULT_REACH_THRESH = .9
+DEFAULT_REACH_THRESH = 1.5
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = 20 #1.2, 3.2, 10.2
+DEFAULT_MAX_CHUNK_SIZE = .2 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = True
 cleanup = True
@@ -155,6 +155,7 @@ def getLength(filename):
     results = result.communicate()
     #print(results)
     file_length = float(str(results).split('nduration')[1].split('\\')[0].replace('=', ''))
+    result.kill()
     return file_length
 
 
@@ -170,7 +171,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
     # itereate through the file and make chunks
     while file_length - t_s > 0:
         delta = t_f - t_s
-        print("t_s = " + str(t_s) + "; " + "t_f = " + str(t_f) + "; " + "d = " + str(delta) + "; ")
+        print('t_s = {0}, t_f = {1}, d = {2}'.format(t_s, t_f, delta))
         if file_length - t_f <= 0:
             yield False
         name = 'moviepy_subclip_{0}_{1}_from_{2}'\
@@ -182,7 +183,9 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
                 .format(filename, t_s, min(delta, file_length - t_s), name)
             print('[cmd] ~ {0}'.format(cmd))
-            subprocess.call(cmd)
+            os.system(cmd)
+            #subprocess.run(cmd)
+            #cmd.kill()
             clips_to_remove.append(name)
         else:
             print('skipping chunk-rendering of clip \"' + name + '\"')
@@ -227,9 +230,17 @@ def k_map(a, name):
     if len(a) == 0:
         return None
     if len(a) == 1:
-        inp = ffmpeg.input(b)
+        #inp = ffmpeg.input(b)
+        #print(inp)
         #outp = ffmpeg.output(inp, name)
-        inp = VideoFileClip(name)
+        #render_(outp)
+        print('trying to open clip = {0}'.format(b))
+        inp = mpye.VideoFileClip(b)
+        try:
+            inp.close()
+        except:
+            if verbose:
+                print('failed to close input = {0}'.format(name))
         return inp
     else:
         if verbose: print(colored('Concatenating list of files...', 'blue'))
@@ -249,7 +260,12 @@ def k_map(a, name):
         print('cmd = ' + cmd)
         subprocess.call(cmd)
         if verbose: print(colored('Importing resulting file...', 'blue'))
-        inp = VideoFileClip(name)
+        inp = mpye.VideoFileClip(name)
+        try:
+            inp.close()
+        except:
+            if verbose:
+                print('failed to close input = {0}'.format(name))
         clips_to_remove.append(guide_file)
         clips_to_remove.append(name)
         return inp
@@ -377,10 +393,11 @@ def get_ts(e):
 
 def k_splval(l, tr, fn):
     tmp = l.copy()
-    n = 0
-    while fn(tmp[n]) < tr and n < len(l) - 1:
-        n += 1
-    return tmp[n:]
+    n = len(l) - 1
+    while fn[0](tmp[n]) > tr[0] and n > 0:
+        #and fn[1](tmp[n]) > tr[1] \
+        n -= 1
+    return tmp[n+1:]
 
 
 def lSum(l, fn):
@@ -447,8 +464,8 @@ def k_stats(cl):
     if verbose: print('thresholds = {0}'.format(thresholds))
 
     start = datetime.now()
-    rem_solo = k_splval(f_solo.copy(), thresholds[0], get_ts)
-    rem_spread = k_splval(f_spread.copy(), thresholds[1], get_ts)
+    rem_solo = k_splval(f_solo.copy(), thresholds, (get_v, get_sv))
+    rem_spread = k_splval(f_spread.copy(), thresholds, (get_v, get_sv)) #lists should be the same
     end = datetime.now()
     if verbose: print('time to generate trimmed lists: {0}'.format(end - start))
     if verbose: print('len(solo) = {0}\nlen(rem_solo) = {1}\npercentage = {2:.3f}' \
@@ -545,7 +562,11 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     # get subclips in the processing part
     if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
     movie_v = mpye.VideoFileClip(og)
-    movie_v.close()
+    try:
+        movie_v.close()
+    except:
+        if verbose:
+            print('failed to close movie_v = {0}'.format(og))
     # test_input = ffmpeg.input(og) test_output = ffmpeg.output(test_input, 'test_' + og) render_(test_output)
     # movie_v.write_videofile('base.mp4', ffmpeg_params=['-c:v', 'h264', '-c:a', 'aac'])
     # movie_v.show()
@@ -637,13 +658,13 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         if verbose: print(colored('Building snippets...', 'blue'))
         movie_v_fps = movie_v.fps
         inputs = ''
-        sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
-        if (le == 1):
+        sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+        if (len(rem_solo) == 1):
             print('one value passed')
-        if (le > 1):
+        if (len(rem_solo) > 1):
             print('multiple values passed')
-            for c in fl[1:]:
-                tmp_sub = i.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+            for c in rem_solo:
+                tmp_sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
                 sub = ffmpeg.concat(sub['v'], sub['a'], tmp_sub['v'], tmp_sub['a'], v=1, a=1)
         if verbose: print(
             colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
