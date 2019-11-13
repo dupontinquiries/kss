@@ -506,7 +506,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         highpass = 0
         lowpass = 20000
     if not k_xi(name_audio):
-        a_name_audio = input.audio \
+        a_name_audio = input.split()[1] \
             .filter("afftdn", nr=6, nt="w", om="o") \
             .filter("afftdn", nr=2, nt="w", om="o") \
             .filter("loudnorm")
@@ -522,7 +522,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     # voice_opt
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', 'blue'))
-        a_voice = a.audio \
+        a_voice = a.split()[1] \
             .filter("afftdn", nr=6, nt="w", om="o") \
             .filter('highpass', highpass) \
             .filter("lowpass", lowpass) \
@@ -658,47 +658,49 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         if verbose: print(colored('Building snippets...', 'blue'))
         movie_v_fps = movie_v.fps
         inputs = ''
-        sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+        sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f).split()
         if (len(rem_solo) == 1):
             print('one value passed')
         if (len(rem_solo) > 1):
             print('multiple values passed')
             for c in rem_solo:
-                tmp_sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
-                sub = ffmpeg.concat(sub['v'], sub['a'], tmp_sub['v'], tmp_sub['a'], v=1, a=1)
-        if verbose: print(
-            colored('thresh_solo = ' + str(thresh_solo) + '\nthresh_multi = ' + str(thresh_spread), 'blue'))
+                tmp_sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f).split()
+                concatenationV = ffmpeg.concat(sub[0], tmp_sub[0])
+                print(concatenationV)
+                concatenationA = ffmpeg.concat(sub[0], tmp_sub[0])
+                print(concatenationA)
+                concatenation = ffmpeg.concat(concatenationV, concatenationA)
         fr = sub
-        # p_t = k_round(x / (len(chunks_a) - 1), 5)
-        # avg_p = int(statistics.mean(p_arr))
-        # periods = ''
-        # for o in range(0, avg_p):
-        #    periods += '.'
-        # print(colored('Accepted ' + str(movie_v_duration * p_t) + 's or ' + str(p_t * 100) + '% of the clip'
-        #                + '\nwith an average length of ' + str(avg_p * chunk_length_s) + 's:'
-        #                + '\n' + periods
-        #                              , 'blue'))
-        print('tecca = ' + str(fr))
-    base_name = 'chunks\\processed_output_from_' + name
-    ret = fr  # ffmpeg.input(base_name + '.mp4')
+
+    base_name = 'fclips\\processed_output_from_' + name
+    output_stream = ffmpeg.output(sub[0], '.mp4'.format(base_name))
+    if not k_xi('.mp4'.format(base_name)):
+        render_(output_stream)
+    exit()
+    ret = ffmpeg.input(base_name + '.mp4')
+    print('tecca = ' + str(ret))
     movie_height = movie_v.h
     desired_height = crop_h
     movie_width = movie_v.w
     desired_width = crop_w
     scale_factor = min((movie_height / desired_height), (movie_width / desired_width))
-    if verbose: print(colored('Resizing video with a scale factor of ' + str(scale_factor) + ', and dimentions w: '
-                              + str(desired_width) + ' and h: ' + str(desired_height) + '...', 'blue'))
-    base_v = ret.video.filter('crop', x=1.50 * crop_w * scale_factor, y=0 * crop_h * scale_factor,
-                              w=crop_w * scale_factor, h=crop_h * scale_factor)
-    base_a = ret.audio.filter("loudnorm").filter("afftdn", nr=8, nt="w", om="o").filter("equalizer", f=7000,
-                                                                                        width_type="o", width=5,
-                                                                                        g=1).filter("equalizer", f=200,
-                                                                                                    width_type="o",
-                                                                                                    width=2,
-                                                                                                    g=-1)
+    if verbose:
+        print(colored('Resizing video with a scale factor = {0}\nand dimensions desired_width = {1}\nand desired_height = {2}' \
+            .format(scale_factor, desired_width, desired_height), 'blue'))
+
+
+    base_v = ret.split()[0].filter('crop', x=1.50 * crop_w * scale_factor, y=0 * crop_h * scale_factor, w=crop_w * scale_factor, h=crop_h * scale_factor)
     output_file = 'flcips\\filtered_and_processed_output_from_' + name
-    if verbose: print(colored('Writing filtered files...', 'blue'))
-    output = ffmpeg.output(base_v, base_a, output_file + '.mp4')
+    output = ffmpeg.output(base_v, '{0}.mp4'.format(output_file))
+    print(output)
+    render_(output)
+    exit()
+    base_a = ret.audio.filter("loudnorm").filter("afftdn", nr=8, nt="w", om="o") \
+        .filter("equalizer", f=7000, width_type="o", width=5, g=1).filter("equalizer", f=200, width_type="o", width=2, g=-1)
+    if verbose:
+        print(colored('Writing filtered files...', 'blue'))
+    out_stream = ffmpeg.map_audio(base_v, base_a)
+    output = ffmpeg.output(out_stream, '{0}.mp4'.format(output_file))
     render_(output)
     # output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
     # output_a = ffmpeg.output(base_a, output_file + '.wav')
