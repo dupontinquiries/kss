@@ -696,9 +696,10 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
                                                                                                     width_type="o",
                                                                                                     width=2,
                                                                                                     g=-1)
-    output_file = 'chunks\\filtered_and_processed_output_from_' + name
+    output_file = 'flcips\\filtered_and_processed_output_from_' + name
     if verbose: print(colored('Writing filtered files...', 'blue'))
     output = ffmpeg.output(base_v, base_a, output_file + '.mp4')
+    render_(output)
     # output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
     # output_a = ffmpeg.output(base_a, output_file + '.wav')
     # render_(output_v)
