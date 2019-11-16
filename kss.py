@@ -51,6 +51,8 @@ DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = True
 cleanup = True
 dir = ''
+print_color = 'cyan'
+print_color_error = 'yellow'
 
 
 # id / random string generator
@@ -84,18 +86,18 @@ def main():  # call is at the end
         else:
             dir = dirname(abspath(__file__)) + '\\footage'
     except:
-        print(colored('The directory \"' + dir + '\" was not found!', 'red'))
+        print(colored('The directory \"' + dir + '\" was not found!', print_color_error))
         sys.exit(0)
     os.chdir(dir)
     print('dir = {0}'.format(os.getcwd()))
-    if verbose: print(colored('root: ' + str(dir), 'blue'))
-    if verbose: print(colored('Finding all video files...', 'blue'))
+    if verbose: print(colored('root: ' + str(dir), print_color))
+    if verbose: print(colored('Finding all video files...', print_color))
     vid_arr = create_video_list(dir,
                                 False)  # dir, create time stamps and reorder based on time blocks, time block duration
     if len(vid_arr) < 1:
-        print(colored('No video files were found in \"' + dir + '\"!', 'red'))
+        print(colored('No video files were found in \"' + dir + '\"!', print_color_error))
         sys.exit(0)
-    if verbose: print(colored('Processing files...', 'blue'))
+    if verbose: print(colored('Processing files...', print_color))
     # gather clips for main file
     maxi = max(1, len(vid_arr) - 1)
     for w in range(0, max(1, len(vid_arr) - 1)):
@@ -104,24 +106,24 @@ def main():  # call is at the end
         if process != False:
             final_cuts.append(process)
             if verbose:
-                print(colored('Adding file \"' + str(process) + '\" to the final video...', 'blue'))
+                print(colored('Adding file \"' + str(process) + '\" to the final video...', print_color))
         else:
-            print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', 'red'))
-    if verbose: print(colored('Your final video is almost ready...', 'blue'))
+            print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', print_color_error))
+    if verbose: print(colored('Your final video is almost ready...', print_color))
     main = None
     if len(final_cuts) > 1:
         main = concatenate_videoclips(final_cuts)
     if len(final_cuts) == 1:
         main = final_cuts[0]
     else:
-        print(colored('No clips rendered!', 'red'))
+        print(colored('No clips rendered!', print_color_error))
         sys.exit(0)
-    if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', 'blue'))
+    if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', print_color))
     main.write_videofile('final\\final_cut_with_props_' + str(THRESHOLD) + '__' + str(PERIOD) + '__' + str(REACH_ITER)
                          + '__' + str(WIDTH) + '__' + str(HEIGHT) + '__' + str(MAX_CHUNK_SIZE) + '.mp4')
     # clean up all clips
     if cleanup:
-        if verbose: print(colored('Cleaning up the space...', 'blue'))
+        if verbose: print(colored('Cleaning up the space...', print_color))
         for clip in clips_to_remove:
             k_remove(str(clip))
     print(colored('Your video is ready!', 'green'))
@@ -146,24 +148,28 @@ def read_in_chunks(file_object, chunk_size=1024):
         yield data
 
 
-def getLength(filename):
+def kFileCharacteristic(filename, ret='all'):
     cmd = 'ffprobe "{0}" -show_format ' \
         .format(filename)
     result = subprocess \
         .Popen(cmd, \
         stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     results = result.communicate()
+    w = None
+    if ret == 'all':
+        w = results
+    else:
+        w = float(str(results).split(ret)[1].split('\\')[0].replace('=', ''))
     #print(results)
-    file_length = float(str(results).split('nduration')[1].split('\\')[0].replace('=', ''))
     result.kill()
-    return file_length
+    return w
 
 
 def read_in_ffmpeg_chunks(filename, max_chunk_size):
     file_length = 0
     if verbose:
-        print(colored('Finding length...', 'blue'))
-    file_length = getLength(filename)
+        print(colored('Finding length...', print_color))
+    file_length = kFileCharacteristic(filename, 'nduration')
     print('d = {0}'.format(file_length))
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
@@ -206,7 +212,7 @@ def k_remove(a):
 
 # concatenating video files
 def k_concat(a):
-    if verbose: print(colored('Concatenating a list of files using the k_concat function...', 'blue'))
+    if verbose: print(colored('Concatenating a list of files using the k_concat function...', print_color))
     b = a[0]
     if len(a) == 0:
         return None
@@ -225,7 +231,7 @@ def k_path(p):
 
 # concatenating audio files
 def k_map(a, name):
-    if verbose: print(colored('Rendering output \'' + name + '\' with the k_map function...', 'blue'))
+    if verbose: print(colored('Rendering output \'' + name + '\' with the k_map function...', print_color))
     b = a[0]
     if len(a) == 0:
         return None
@@ -243,7 +249,7 @@ def k_map(a, name):
                 print('failed to close input = {0}'.format(name))
         return inp
     else:
-        if verbose: print(colored('Concatenating list of files...', 'blue'))
+        if verbose: print(colored('Concatenating list of files...', print_color))
         guide_file = 'chunks\\files_to_concat.txt'
         k_remove(guide_file)
         with open(guide_file, "w") as file:
@@ -253,13 +259,13 @@ def k_map(a, name):
                 fn = a[x]
                 fn = fn.replace('chunks\\', '')
                 inputs += 'file \'' + str(fn) + '\'\n'
-            if verbose: print(colored('input list: \n' + inputs, 'blue'))
+            if verbose: print(colored('input list: \n' + inputs, print_color))
             file.write(inputs)
         cmd = ('ffmpeg -y -f concat -safe 0 -i \"' + k_path(guide_file).replace('\\', '/')
                + '\" -fs 1GB -c:v copy -c:a aac \"' + k_path(name).replace('\\', '/') + '\"')
         print('cmd = ' + cmd)
         subprocess.call(cmd)
-        if verbose: print(colored('Importing resulting file...', 'blue'))
+        if verbose: print(colored('Importing resulting file...', print_color))
         inp = mpye.VideoFileClip(name)
         try:
             inp.close()
@@ -272,7 +278,7 @@ def k_map(a, name):
 
 
 def mpy_concat(filenames, output_name):
-    if verbose: print(colored('Concatenating a list of files using the mpy_concat function...', 'blue'))
+    if verbose: print(colored('Concatenating a list of files using the mpy_concat function...', print_color))
     mpys_v = []
     mpys_a = []
     for fn in enumerate(filenames):
@@ -291,12 +297,12 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     base_name = filename[:-4]
     # compress any large files
     smaller_clips = []
-    if verbose: print(colored('Verifying clip \"' + filename + '\"', 'blue'))
+    if verbose: print(colored('Verifying clip \"' + filename + '\"', print_color))
     if "completed" in filename or "output_from_all" in filename or "sublcip" in filename or "moviepy" in filename:
         return False
     tmp_clip = False
     # get duration
-    if verbose: print(colored('Finding length...', 'blue'))
+    if verbose: print(colored('Finding length...', print_color))
     tmp_clip = mpye.VideoFileClip(filename)
     l = tmp_clip.duration
     del tmp_clip
@@ -305,9 +311,9 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
         if not k_xi(filename):
             console_a = ' not'
         print(colored('An error was encountered while opening \"'
-                      + filename + '\"!  The file seems to' + console_a + ' exist.', 'red'))
+                      + filename + '\"!  The file seems to' + console_a + ' exist.', print_color_error))
         sys.exit(0)
-    if verbose: print(colored('Chunking clip...', 'blue'))
+    if verbose: print(colored('Chunking clip...', print_color))
     for piece in read_in_ffmpeg_chunks(filename, max_chunk_size):
         if piece is not False:
             input = piece[0]
@@ -319,12 +325,12 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             result = process_audio_loudness_over_time(input, fn, mod, c_l, spread, thresh_mod, crop_w, crop_h)
             if result is not False:
                 smaller_clips.append(result)
-                if verbose: print(colored('Adding clip \"' + fn + '\" to the list...', 'blue'))
+                if verbose: print(colored('Adding clip \"' + fn + '\" to the list...', print_color))
             else:
                 print('No data appended for chunk \"' + fn + '\"')
     if len(smaller_clips) >= 1:
         output_name = "final\\completed_file_" + base_name
-        if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', 'blue'))
+        if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
         return k_map(smaller_clips, output_name + '.mp4')
     else:
         return False
@@ -497,7 +503,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     # audio
     name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
     name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
-    if verbose: print(colored('Preparing audio for video...', 'blue'))
+    if verbose: print(colored('Preparing audio for video...', print_color))
     # video clip audio
     #set values for treatment type
     highpass = 80
@@ -506,23 +512,24 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         highpass = 0
         lowpass = 20000
     if not k_xi(name_audio):
-        a_name_audio = input.split()[1] \
-            .filter("afftdn", nr=6, nt="w", om="o") \
-            .filter("afftdn", nr=2, nt="w", om="o") \
-            .filter("loudnorm")
+
+        a_name_audio = ffmpeg.input(og) #\
+            #.filter("afftdn", nr=6, nt="w", om="o") \
+            #.filter("afftdn", nr=2, nt="w", om="o") \
+            #.filter("loudnorm")
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
-        if verbose: print(colored('Preparing tailored audio...', 'blue'))
+        if verbose: print(colored('Preparing tailored audio...', print_color))
         # export clip audio
         output = ffmpeg.output(a_name_audio, name_audio)
-        if verbose: print(colored('Writing tailored audio...', 'blue'))
+        if verbose: print(colored('Writing tailored audio...', print_color))
         render_(output)
-    if verbose: print(colored('Importing tailored audio from \"' + name_audio + '\"...', 'blue'))
+    if verbose: print(colored('Importing tailored audio from \"' + name_audio + '\"...', print_color))
     a = ffmpeg.input(name_audio)
     # voice_opt
     if not k_xi(name_audio_voice):
-        if verbose: print(colored('Preparing audio for analysis...', 'blue'))
-        a_voice = a.split()[1] \
+        if verbose: print(colored('Preparing audio for analysis...', print_color))
+        a_voice = a \
             .filter("afftdn", nr=6, nt="w", om="o") \
             .filter('highpass', highpass) \
             .filter("lowpass", lowpass) \
@@ -531,13 +538,13 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         # export voice_optimized audio
         output = ffmpeg.output(a_voice, name_audio_voice)
         render_(output)
-    if verbose: print(colored('Importing optimized audio from \"' + name_audio_voice + '\"...', 'blue'))
+    if verbose: print(colored('Importing optimized audio from \"' + name_audio_voice + '\"...', print_color))
     a_voice = ffmpeg.input(name_audio_voice)
     # import the new voice_opt audio
-    if verbose: print(colored('Establishing audio files...', 'blue'))
+    if verbose: print(colored('Establishing audio files...', print_color))
     movie_a_fc = AudioSegment.from_wav(name_audio)
     a_voices_fc = AudioSegment.from_wav(name_audio_voice)
-    if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', 'blue'))
+    if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', print_color))
 
 
     movie_a = mpye.AudioFileClip(name_audio)
@@ -545,7 +552,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         movie_a.close()
         movie_a.reader.close()
     except:
-        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', 'red'))
+        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', print_color_error))
     #print(movie_a)
     #exit()
 
@@ -555,12 +562,12 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         a_voices.close()
         a_voices.reader.close()
     except:
-        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', 'red'))
+        if verbose: print(colored('Error closing reader of optimized audio from \"' + name_audio_voice + '\"...', print_color_error))
     # add them to delete list
     clips_to_remove.append(name_audio)
     clips_to_remove.append(name_audio_voice)
     # get subclips in the processing part
-    if verbose: print(colored('Opening clip \'' + og + '\'...', 'blue'))
+    if verbose: print(colored('Opening clip \'' + og + '\'...', print_color))
     movie_v = mpye.VideoFileClip(og)
     try:
         movie_v.close()
@@ -575,10 +582,10 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     try:
         duration = movie_v.duration
     except:
-        print(colored('Failed to open clip \'' + og + '\' and find its length!', 'red'))
+        print(colored('Failed to open clip \'' + og + '\' and find its length!', print_color_error))
         return False
     if k_xi(concat_log):
-        if verbose: print(colored('Found documentation of what clips to use...', 'blue'))
+        if verbose: print(colored('Found documentation of what clips to use...', print_color))
         tc_v = []
         tc_a = []
         with open(concat_log, "r") as file:
@@ -597,13 +604,13 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
                 del tmp_a
                 print(colored('Section ' + str(start) + ' to ' + str(cap), 'green'))
         if len(tc_v) < 1:
-            print(colored("No packets came through.", 'red'))
+            print(colored("No packets came through.", print_color_error))
             return False
         processed_v = None
         processed_a = None
         if len(tc_v) > 1:
-            if verbose: print(colored('Concatenating snippets...', 'blue'))
-            if verbose: print(colored('Concatenating a list of files from a chunk...', 'blue'))
+            if verbose: print(colored('Concatenating snippets...', print_color))
+            if verbose: print(colored('Concatenating a list of files from a chunk...', print_color))
             processed_a = concatenate_audioclips(tc_a)
             processed_v = concatenate_videoclips(tc_v)
             print(colored("Concatenating accepted packets.", 'green'))
@@ -615,9 +622,9 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
                 + 'you should consider lowering your threshold value or changing the search distance value.',
                 'blue'))
     else:
-        if verbose: print(colored('No documentation found: creating clips and documentation from scratch...', 'blue'))
+        if verbose: print(colored('No documentation found: creating clips and documentation from scratch...', print_color))
         # create averaged audio sections and decide which ones meet threshold
-        if verbose: print(colored('Chunking audio...', 'blue'))
+        if verbose: print(colored('Chunking audio...', print_color))
         chunk_length_ms = c_l
         chunk_length_s = chunk_length_ms / 1000
         # maybe use iter_chunks
@@ -655,7 +662,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
         #         'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
 
         # log
-        if verbose: print(colored('Building snippets...', 'blue'))
+        if verbose: print(colored('Building snippets...', print_color))
         movie_v_fps = movie_v.fps
         inputs = ''
         sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f).split()
@@ -676,7 +683,6 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     output_stream = ffmpeg.output(sub[0], '.mp4'.format(base_name))
     if not k_xi('.mp4'.format(base_name)):
         render_(output_stream)
-    exit()
     ret = ffmpeg.input(base_name + '.mp4')
     print('tecca = ' + str(ret))
     movie_height = movie_v.h
@@ -686,7 +692,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     scale_factor = min((movie_height / desired_height), (movie_width / desired_width))
     if verbose:
         print(colored('Resizing video with a scale factor = {0}\nand dimensions desired_width = {1}\nand desired_height = {2}' \
-            .format(scale_factor, desired_width, desired_height), 'blue'))
+            .format(scale_factor, desired_width, desired_height), print_color))
 
 
     base_v = ret.split()[0].filter('crop', x=1.50 * crop_w * scale_factor, y=0 * crop_h * scale_factor, w=crop_w * scale_factor, h=crop_h * scale_factor)
@@ -698,7 +704,7 @@ def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_mul
     base_a = ret.audio.filter("loudnorm").filter("afftdn", nr=8, nt="w", om="o") \
         .filter("equalizer", f=7000, width_type="o", width=5, g=1).filter("equalizer", f=200, width_type="o", width=2, g=-1)
     if verbose:
-        print(colored('Writing filtered files...', 'blue'))
+        print(colored('Writing filtered files...', print_color))
     out_stream = ffmpeg.map_audio(base_v, base_a)
     output = ffmpeg.output(out_stream, '{0}.mp4'.format(output_file))
     render_(output)
@@ -749,7 +755,8 @@ def create_video_list(a, ts=False):
     tmp = []
     for name in os.listdir(a):
         if (os.path.isfile(name)):
-            if verbose: print(colored('Found file \"' + name + '\"', 'blue'))
+            if verbose:
+                print(colored('Found file \"' + name + '\"', print_color))
             name_lower = name.lower()
             name_root = name_lower[:-4]
             name_ext = name_lower[-4:]

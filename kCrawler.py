@@ -33,7 +33,9 @@ for name in os.listdir(d):
         out = name[:-4] + '_comp.mp4'
         cmd = 'ffmpeg -y -i "{0}" -fs {1}MB "{2}"' \
             .format(inp, fs, out)
-        os.system(cmd)
+        #os.system(cmd)
+        os.system("start cmd /c {0}" \
+            .format(cmd)) 
         completedConversions.add(name)
     except:
         print('Error compressing video: ({0} => {1}).' \
