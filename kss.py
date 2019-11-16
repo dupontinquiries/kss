@@ -195,14 +195,27 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             clips_to_remove.append(name)
         else:
             print('skipping chunk-rendering of clip \"' + name + '\"')
+        #make an audio import to map streams better
+        cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
+            .format(filename, t_s, min(delta, file_length - t_s), name[:-4] + '.wav')
+        print('[cmd] ~ {0}'.format(cmd))
+        os.system(cmd)
+        #subprocess.run(cmd)
+        #cmd.kill()
+        clips_to_remove.append(name)
+        #update time
         t_s += delta
         t_f += delta
         # ret = VideoFileClip(name)
         # print('nav = ' + str(ret))
-        ret = ffmpeg.input(name)
-        if ret == None:
+        try:
+            ret_video = ffmpeg.input(name)
+            ret_audio = ffmpeg.input(name[:-4] + '.wav')
+        except:
             yield False
-        yield [ret, name]
+        if ret_video == None or ret_audio == None:
+            yield False
+        yield (ret_video, ret_audio, name)
 
 
 def k_remove(a):
@@ -298,31 +311,42 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
     # compress any large files
     smaller_clips = []
     if verbose: print(colored('Verifying clip \"' + filename + '\"', print_color))
-    if "completed" in filename or "output_from_all" in filename or "sublcip" in filename or "moviepy" in filename:
-        return False
+    l_ignore = ['completed', 'output_from_all', 'subclip', 'moviepy']
+    for o in l_ignore:
+        if o in filename:
+            return False
     tmp_clip = False
     # get duration
-    if verbose: print(colored('Finding length...', print_color))
+    if verbose:
+        print(colored('Finding length...', print_color))
     tmp_clip = mpye.VideoFileClip(filename)
     l = tmp_clip.duration
-    del tmp_clip
+    try:
+        tmp_clip.close()
+        del tmp_clip
+    except:
+        exist_condition = k_xi(filename)
+        print(colored('An error was encountered while closing the reader for \"{0}\" ({1})' \
+            .format(filename, exist_condition), print_color_error))
     if not l > 0:
-        console_a = ''
-        if not k_xi(filename):
-            console_a = ' not'
-        print(colored('An error was encountered while opening \"'
-                      + filename + '\"!  The file seems to' + console_a + ' exist.', print_color_error))
+        exist_condition = k_xi(filename)
+        print(colored('An error was encountered while closing the reader for \"{0}\" ({1})' \
+            .format(filename, exist_condition), print_color_error))
         sys.exit(0)
     if verbose: print(colored('Chunking clip...', print_color))
     for piece in read_in_ffmpeg_chunks(filename, max_chunk_size):
         if piece is not False:
-            input = piece[0]
-            fn = piece[1]
-            if file_size(fn) >= (10 ** 9):
-                if verbose: print("file " + fn + " is large (" + str(file_size(fn))
-                                  + ").  (Future Capability) Keeping the chunked clips as \"cc\"")
-            if verbose: print('Opening chunk \"' + fn + '\"')
-            result = process_audio_loudness_over_time(input, fn, mod, c_l, spread, thresh_mod, crop_w, crop_h)
+            input_video = piece[0]
+            input_audio = piece[1]
+            file_name_chunk = piece[2]
+            file_size = file_size(file_name_chunk)
+            if file_size >= (10 ** 9):
+                if verbose:
+                    print('file {0} is large ({1})\n(Future Capability) Keeping the chunked clip as \"cc\"' \
+                        .format(file_name_chunk, file_size))
+            if verbose:
+                print('Opening chunk \"{0}\"'.format(file_name_chunk))
+            result = process_audio_loudness_over_time(input_video, input_audio, file_name_chunk, mod, c_l, spread, thresh_mod, crop_w, crop_h)
             if result is not False:
                 smaller_clips.append(result)
                 if verbose: print(colored('Adding clip \"' + fn + '\" to the list...', print_color))
@@ -493,10 +517,10 @@ def k_stats(cl):
 
 
 # merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
-def process_audio_loudness_over_time(input, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
+def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     # create log for future renderings
-    concat_log = 'chunks\\concat_log_args_' + str(name) + '__' + str(mod_solo) + '__' + str(c_l) + '__' + str(spread) \
-                 + '__' + str(mod_multi) + '__' + str(crop_w) + '__' + str(crop_h) + '.txt'
+    concat_log = 'chunks\\c_l_{0:.1f}_{1:.1f}_{2:.1f}_{3:.1f}_{4:.1f}_{5:.1f}_{6:.1f}.txt' \
+        .format(name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h)
     # get root of file name
     og = name
     name = name[:-4]
