@@ -40,7 +40,7 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = 1.0
+DEFAULT_THRESHOLD = 2
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 2
 DEFAULT_REACH_THRESH = 1.5
@@ -186,7 +186,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         # saves time on reruns to skip if the file already exists
         if not k_xi(name):
             # export subclip
-            cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
+            cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -c:v libx265 -c:a aac -strict 1 "{3}"'\
                 .format(filename, t_s, min(delta, file_length - t_s), name)
             print('[cmd] ~ {0}'.format(cmd))
             os.system(cmd)
@@ -196,10 +196,11 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         else:
             print('skipping chunk-rendering of clip \"' + name + '\"')
         #make an audio import to map streams better
-        cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -vcodec h264 -acodec aac "{3}"'\
-            .format(filename, t_s, min(delta, file_length - t_s), name[:-4] + '.wav')
-        print('[cmd] ~ {0}'.format(cmd))
-        os.system(cmd)
+        if not k_xi(name[:-4] + '.wav'):
+            cmd = 'ffmpeg -y -i "{0}" "{1}"'\
+                .format(name[:-4] + '.mp4', name[:-4] + '.wav')
+            print('[cmd] ~ {0}'.format(cmd))
+            os.system(cmd)
         #subprocess.run(cmd)
         #cmd.kill()
         clips_to_remove.append(name)
@@ -274,8 +275,8 @@ def k_map(a, name):
                 inputs += 'file \'' + str(fn) + '\'\n'
             if verbose: print(colored('input list: \n' + inputs, print_color))
             file.write(inputs)
-        cmd = ('ffmpeg -y -f concat -safe 0 -i \"' + k_path(guide_file).replace('\\', '/')
-               + '\" -fs 1GB -c:v copy -c:a aac \"' + k_path(name).replace('\\', '/') + '\"')
+        cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -fs 1GB -c:v libx265 -c:a aac -strict 1 "{1}"' \
+            .format(k_path(guide_file).replace('\\', '/'), k_path(name).replace('\\', '/') + '\"')
         print('cmd = ' + cmd)
         subprocess.call(cmd)
         if verbose: print(colored('Importing resulting file...', print_color))
@@ -339,7 +340,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             input_video = piece[0]
             input_audio = piece[1]
             file_name_chunk = piece[2]
-            file_size = file_size(file_name_chunk)
+            file_size = 1 # file_size(file_name_chunk)
             if file_size >= (10 ** 9):
                 if verbose:
                     print('file {0} is large ({1})\n(Future Capability) Keeping the chunked clip as \"cc\"' \
@@ -349,9 +350,11 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             result = process_audio_loudness_over_time(input_video, input_audio, file_name_chunk, mod, c_l, spread, thresh_mod, crop_w, crop_h)
             if result is not False:
                 smaller_clips.append(result)
-                if verbose: print(colored('Adding clip \"' + fn + '\" to the list...', print_color))
+                if verbose: print(colored('Adding clip "{0}" to the list...' \
+                    .format(file_name_chunk), print_color))
             else:
-                print('No data appended for chunk \"' + fn + '\"')
+                print(colored('No data appended for chunk "{0}"' \
+                    .format(file_name_chunk), print_color))
     if len(smaller_clips) >= 1:
         output_name = "final\\completed_file_" + base_name
         if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
@@ -447,6 +450,7 @@ def medianOf(l, fn):
 def k_stats(cl):
     from datetime import datetime
     # stats
+    print('len(kstats) = {0}'.format(len(cl)))
     f_spread = cl.copy()
     start = datetime.now()
     k_quick_sort(f_spread, 0, len(f_spread) - 1, get_sv)
@@ -462,6 +466,8 @@ def k_stats(cl):
     start = datetime.now()
     sums = (lSum(cl, get_v), lSum(cl, get_sv))
     ln = len(cl)
+    if ln < 1:
+        return False
     averages = (sums[0]/ln, sums[1]/ln)
     end = datetime.now()
     if verbose: print('time to generate averages: {0}'.format(end - start))
@@ -497,14 +503,18 @@ def k_stats(cl):
     rem_solo = k_splval(f_solo.copy(), thresholds, (get_v, get_sv))
     rem_spread = k_splval(f_spread.copy(), thresholds, (get_v, get_sv)) #lists should be the same
     end = datetime.now()
-    if verbose: print('time to generate trimmed lists: {0}'.format(end - start))
-    if verbose: print('len(solo) = {0}\nlen(rem_solo) = {1}\npercentage = {2:.3f}' \
-        .format(len(f_solo), len(rem_solo), len(rem_solo) / len(f_solo)))
-    if verbose: print('len(spread) = {0}\nlen(rem_spread) = {1}\npercentage = {2:.3f}' \
-        .format(len(f_spread), len(rem_spread), len(rem_spread) / len(f_spread)))
+    if verbose:
+        print('time to generate trimmed lists: {0}'.format(end - start))
+    if verbose:
+        print('len(solo) = {0}\nlen(rem_solo) = {1}\npercentage = {2:.3f}' \
+            .format(len(f_solo), len(rem_solo), len(rem_solo) / len(f_solo)))
+    if verbose:
+        print('len(spread) = {0}\nlen(rem_spread) = {1}\npercentage = {2:.3f}' \
+            .format(len(f_spread), len(rem_spread), len(rem_spread) / len(f_spread)))
 
     k_quick_sort(rem_solo, 0, len(rem_solo) - 1, get_ts)
     k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
+
     #if verbose: print('ordered solo list:\n{0}\nordered spread list:\n{1}' \
     #    .format(rem_solo, rem_spread))
 
@@ -519,7 +529,7 @@ def k_stats(cl):
 # merge_outputs = combine clips; overwrite_output = overwrite files /save lines of code
 def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h):
     # create log for future renderings
-    concat_log = 'chunks\\c_l_{0:.1f}_{1:.1f}_{2:.1f}_{3:.1f}_{4:.1f}_{5:.1f}_{6:.1f}.txt' \
+    concat_log = 'chunks\\c_l_{0}_{1:.1f}_{2:.1f}_{3:.1f}_{4:.1f}_{5:.1f}_{6:.1f}.txt' \
         .format(name, mod_solo, c_l, spread, mod_multi, crop_w, crop_h)
     # get root of file name
     og = name
@@ -537,10 +547,10 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
         lowpass = 20000
     if not k_xi(name_audio):
 
-        a_name_audio = ffmpeg.input(og) #\
-            #.filter("afftdn", nr=6, nt="w", om="o") \
-            #.filter("afftdn", nr=2, nt="w", om="o") \
-            #.filter("loudnorm")
+        a_name_audio = input_audio \
+            .filter("afftdn", nr=6, nt="w", om="o") \
+            .filter("afftdn", nr=2, nt="w", om="o") \
+            .filter("loudnorm")
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', print_color))
@@ -686,28 +696,46 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
         #         'mean_solo': mean_f_solo, 'median_solo': median_f_solo, 'max_solo': max_f_solo}]
 
         # log
-        if verbose: print(colored('Building snippets...', print_color))
+        if verbose:
+            print(colored('Building snippets...', print_color))
         movie_v_fps = movie_v.fps
-        inputs = ''
-        sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f).split()
+        inputs = ''\
+        ####
+        #concatClips = concatenate_videoclips([VideoFileClip(x) for x in clipsFileNames])
+        #concatClips.write_videofile(target)
+        ####
+        #sub = input_video.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+        #sub = input_video.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+        subclips_mpy = []
         if (len(rem_solo) == 1):
             print('one value passed')
-        if (len(rem_solo) > 1):
+        #if (len(rem_solo) > 1):
+        else:
             print('multiple values passed')
+            print('rem_solo = {0}'.format(rem_solo))
+            print('rem_solo[1] = {0}'.format(rem_solo[1]))
+            print('rem_solo[1].t_s = {0}'.format(rem_solo[1].t_s))
             for c in rem_solo:
-                tmp_sub = input.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f).split()
-                concatenationV = ffmpeg.concat(sub[0], tmp_sub[0])
-                print(concatenationV)
-                concatenationA = ffmpeg.concat(sub[0], tmp_sub[0])
-                print(concatenationA)
-                concatenation = ffmpeg.concat(concatenationV, concatenationA)
-        fr = sub
-
+                print('c.t_s = {0}'.format(c.t_s))
+                sub = movie_v.subclip(c.t_s, c.t_f)
+                subclips_mpy.append(sub)
+                #tmp_sub = input_video.trim(start_frame=movie_v_fps * c.t_s, end_frame=movie_v_fps * c.t_f)
+                #concatenationV = ffmpeg.concat(sub[0], tmp_sub[0])
+                #print(concatenationV)
+                #concatenationA = ffmpeg.concat(sub[0], tmp_sub[0])
+                #print(concatenationA)
+                #concatenation = ffmpeg.concat(concatenationV, concatenationA)
+                #sub = ffmpeg.concatenate_videoclips(sub, tmp_sub)
+    concatenated_clips = mpye.concatenate_videoclips([VideoFileClip(x) for x in clipsFileNames])
+    print(subclips_mpy)
+    print(concatenated_clips)
+    exit()
     base_name = 'fclips\\processed_output_from_' + name
-    output_stream = ffmpeg.output(sub[0], '.mp4'.format(base_name))
-    if not k_xi('.mp4'.format(base_name)):
+    output_stream = ffmpeg.output(sub[0], base_name + '.mp4')
+    if not k_xi(base_name + '.mp4'):
         render_(output_stream)
     ret = ffmpeg.input(base_name + '.mp4')
+    exit()
     print('tecca = ' + str(ret))
     movie_height = movie_v.h
     desired_height = crop_h
@@ -724,21 +752,23 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
     output = ffmpeg.output(base_v, '{0}.mp4'.format(output_file))
     print(output)
     render_(output)
-    exit()
-    base_a = ret.audio.filter("loudnorm").filter("afftdn", nr=8, nt="w", om="o") \
-        .filter("equalizer", f=7000, width_type="o", width=5, g=1).filter("equalizer", f=200, width_type="o", width=2, g=-1)
+    base_a = ret.audio \
+        .filter("afftdn", nr=6, nt="w", om="o") \
+        .filter("afftdn", nr=2, nt="w", om="o") \
+        .filter("loudnorm")
     if verbose:
         print(colored('Writing filtered files...', print_color))
     out_stream = ffmpeg.map_audio(base_v, base_a)
     output = ffmpeg.output(out_stream, '{0}.mp4'.format(output_file))
     render_(output)
+    exit()
     # output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
     # output_a = ffmpeg.output(base_a, output_file + '.wav')
     # render_(output_v)
     # render_(output_a)
     # subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
-    #                + ' -fs 1GB -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
-    # subprocess.call('-c:v copy -c:a aac')
+    #                + ' -fs 1GB -c:v libx265 -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
+    # subprocess.call('-c:v libx265 -c:a aac')
     # k_remove(output_file + '_2.mp4')
     clips_to_remove.append(output_file + '.mp4')
     clips_to_remove.append(output_file + '.wav')
@@ -749,7 +779,8 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 
 # convert a video to an mp4
 def to_mp4(name):
-    subprocess.call('ffmpeg -y -i ' + name + ' -fs 1GB -c:v copy -c:a aac ' + name[-4:] + '.mp4')
+    subprocess.call('ffmpeg -y -i "{0}" -fs 1GB -c:v libx265 -c:a aac -strict 1 "{1}"' \
+        .format(name, name[:-4] + '.mp4'))
 
 
 # create video timestamps
