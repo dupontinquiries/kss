@@ -41,12 +41,12 @@ clips_to_remove = []
 # default values
 # processing
 DEFAULT_THRESHOLD = 1
-DEFAULT_PERIOD = 450
-DEFAULT_REACH_ITER = 2
-DEFAULT_REACH_THRESH = 1.5
+DEFAULT_PERIOD = 750
+DEFAULT_REACH_ITER = 3
+DEFAULT_REACH_THRESH = 1.15 * DEFAULT_THRESHOLD
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = 1 #1.2, 3.2, 10.2
+DEFAULT_MAX_CHUNK_SIZE = 3 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = True
 cleanup = True
@@ -495,8 +495,13 @@ def k_stats(cl):
     start = datetime.now()
     w = k_chunk(0, None, 0, 0, 0, 0, 'nofile', True).DEFAULT_FLOOR
     thresholds = \
-    (DEFAULT_THRESHOLD * ((averages[0] * .3) + (medians[0].v * .4) + (maxes[0].v * .3)), \
-    DEFAULT_REACH_THRESH * ((averages[1] * .3) + (medians[1].sv * .4) + (maxes[1].sv * .3)))
+    (DEFAULT_THRESHOLD * ((averages[0] * .15) + (medians[0].v * .15) + (maxes[0].v * .7)), \
+    DEFAULT_REACH_THRESH * ((averages[1] * .15) + (medians[1].sv * .15) + (maxes[1].sv * .7)))
+
+    if False:
+        thresholds = \
+        (DEFAULT_THRESHOLD * ((averages[0] * .15) + (medians[0].v * .15) + (maxes[0].v * .3)), \
+        DEFAULT_REACH_THRESH * ((averages[1] * .15) + (medians[1].sv * .15) + (maxes[1].sv * .3)))
     end = datetime.now()
     if verbose: print('time to generate thresholds: {0}'.format(end - start))
     if verbose: print('thresholds = {0}'.format(thresholds))
@@ -521,13 +526,22 @@ def k_stats(cl):
     #    .format(rem_solo, rem_spread))
 
     #make the golden list: a blend of spread and solo values that focuses on making cohesive cuts
+    goldenList = []
+    for o in cl:
+        #if o in rem_solo or o in rem_spread:
+        if o.v > thresholds[0] or o.sv > thresholds[1]:
+            goldenList.append(o)
+
+    print('{0}'.format(thresholds))
+    print('{0}, {1}, {2}'.format(len(goldenList), len(rem_solo), len(rem_spread)))
+    #print(goldenList)
 
 
     # TODO:
     # make dictionary of values anmd pass nack to parent function
     # add recursive tuning loop that can adjust threshold value by abs(.1 * floor) value
 
-    return (rem_solo, thresholds[0], rem_spread, thresholds[1])
+    return (rem_solo, thresholds[0], rem_spread, thresholds[1], goldenList)
 
 def wrapper(func, *args):
     func(*args)
@@ -575,10 +589,10 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
     if not k_xi(name_audio_voice):
         if verbose: print(colored('Preparing audio for analysis...', print_color))
         a_voice = a \
-            .filter("afftdn", nr=6, nt="w", om="o") \
+            .filter("afftdn", nr=12, nt="w", om="o") \
             .filter('highpass', highpass) \
             .filter("lowpass", lowpass) \
-            .filter("afftdn", nr=2, nt="w", om="o") \
+            .filter("afftdn", nr=12, nt="w", om="o") \
             .filter("loudnorm")
         # export voice_optimized audio
         output = ffmpeg.output(a_voice, name_audio_voice)
@@ -688,7 +702,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
             kc.append(c)
         # get list stats for pinpointing threshold
         # k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
-        rem_solo, thresh_solo, rem_spread, thresh_spread = k_stats(kc)
+        rem_solo, thresh_solo, rem_spread, thresh_spread, goldenList = k_stats(kc)
 
         if len(rem_solo) < 1:
             print('no values passed')
@@ -708,7 +722,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 
         concatenated_clips = []
         sourceFile = mpye.VideoFileClip(og)
-        if (len(rem_solo) == 1):
+        if (len(goldenList) == 1):
             if verbose:
                 print(colored('One value passed!', print_color))
             sub = sourceFile.subclip(c.t_s, c.t_f)
@@ -718,8 +732,8 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
             if verbose:
                 print(colored('Multiple values passed!', print_color))
 
-            for i in range(len(rem_solo)):
-                c = rem_solo[i]
+            for i in range(len(goldenList)):
+                c = goldenList[i]
                 print('chunk = {0}'.format(c))
                 sub = sourceFile.subclip(c.t_s, c.t_f)
                 concatenated_clips.append(sub)

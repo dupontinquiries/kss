@@ -45,7 +45,7 @@ class k_chunk:
 
 
     def __repr__(self):
-        return repr('[CHUNK] @ {0}, v = {1}, sv = {2}'.format(self.timestamp, self.v, self.sv))
+        return repr('[CHUNK] @ {0}, v = {1:.2f}, sv = {2:.2f}'.format(self.timestamp, self.v, self.sv))
 
 
     def __setitem__(self, n, data):
@@ -56,13 +56,15 @@ class k_chunk:
           return self.data[n]
 
 
-    def __eq__(self, b):
+    def eqExact(self, b):
         return (self.source == b.source \
             and self.t_s == b.t_s \
-            and self.t_f == self.t_f \
+            and self.t_f == b.t_f \
             and self.v == b.v \
             and self.sv == b.sv)
 
+    def __eq__(self, b):
+        return self.t_s == b.t_s and self.t_f == b.t_f
 
     def v():
         return self.v
