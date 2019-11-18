@@ -1,12 +1,12 @@
 class k_chunk:
 
-    DEFAULT_FLOOR = -250
+    DEFAULT_FLOOR = -500
     v = 0
     sv = 0
     data = []
     timestamp = None
 
-    def __init__(self, i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, dud=False):
+    def __init__(self, i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, source=None, dud=False):
         self.data = list()
         self.i = i
         if dud:
@@ -24,6 +24,7 @@ class k_chunk:
 
         self.timestamp = (self.t_s, self.t_f)
 
+        self.source = source
 
     def gen_sv(self, sl, sr, l, i):
         t = 0
@@ -53,6 +54,14 @@ class k_chunk:
 
     def __getitem__(self, n):
           return self.data[n]
+
+
+    def __eq__(self, b):
+        return (self.source == b.source \
+            and self.t_s == b.t_s \
+            and self.t_f == self.t_f \
+            and self.v == b.v \
+            and self.sv == b.sv)
 
 
     def v():
