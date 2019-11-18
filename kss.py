@@ -276,7 +276,8 @@ def k_map(a, name):
                 inputs += 'file \'' + str(fn) + '\'\n'
             if verbose: print(colored('input list: \n' + inputs, print_color))
             file.write(inputs)
-        cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -fs 1GB -c:v libx265 -c:a aac -strict 1 "{1}"' \
+            #-fs 1GB
+        cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -c:v libx265 -c:a aac -strict 1 "{1}"' \
             .format(k_path(guide_file), k_path(name))
         print('cmd = ' + cmd)
         subprocess.call(cmd)
@@ -521,6 +522,7 @@ def k_stats(cl):
 
     #make the golden list: a blend of spread and solo values that focuses on making cohesive cuts
 
+
     # TODO:
     # make dictionary of values anmd pass nack to parent function
     # add recursive tuning loop that can adjust threshold value by abs(.1 * floor) value
@@ -681,7 +683,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
         # create array of sound levels
         for o in range(0, len(chunks_a) - 1):
             #i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, dud=False
-            c = k_chunk(o, chunks_a, spread_calc, spread_calc // 2, o * chunk_length_s, (o + 1) * chunk_length_s, name)
+            c = k_chunk(o, chunks_a, spread_calc, spread_calc, o * chunk_length_s, (o + 1) * chunk_length_s, name)
             #print('Chunk created: {0}'.format(c))
             kc.append(c)
         # get list stats for pinpointing threshold
@@ -772,8 +774,8 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 # make new function that takes the cut times and adds timewarping
 
 # convert a video to an mp4
-def to_mp4(name):
-    subprocess.call('ffmpeg -y -i "{0}" -fs 1GB -c:v libx265 -c:a aac -strict 1 "{1}"' \
+def to_mp4(name): #-fs 1GB
+    subprocess.call('ffmpeg -y -i "{0}" -c:v libx265 -c:a aac -strict 1 "{1}"' \
         .format(name, name[:-4] + '.mp4'))
 
 
