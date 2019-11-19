@@ -25,6 +25,11 @@ from k_chunk import k_chunk
 
 # from numba import vectorize
 
+#store user input
+
+inputLog = []
+curr_input = None
+
 t_stamps = {}
 
 # functions
@@ -40,15 +45,15 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = 1.15
-DEFAULT_PERIOD = 750
-DEFAULT_REACH_ITER = 3
-DEFAULT_REACH_THRESH = .975 * DEFAULT_THRESHOLD
+DEFAULT_THRESHOLD = 1.5
+DEFAULT_PERIOD = 350
+DEFAULT_REACH_ITER = 10
+DEFAULT_REACH_THRESH = .9 * DEFAULT_THRESHOLD
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = 3 #1.2, 3.2, 10.2
+DEFAULT_MAX_CHUNK_SIZE = 6 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
-verbose = True
+verbose = False
 cleanup = True
 dir = ''
 print_color = 'cyan'
@@ -128,6 +133,13 @@ def main():  # call is at the end
         for clip in clips_to_remove:
             k_remove(str(clip))
     print(colored('Your video is ready!', 'green'))
+
+
+def kIn(x):
+    b = input(x)
+    curr_input = b
+    print(b)
+    return b
 
 
 def k_xi(p):
@@ -495,8 +507,8 @@ def k_stats(cl):
     start = datetime.now()
     w = k_chunk(0, None, 0, 0, 0, 0, 'nofile', True).DEFAULT_FLOOR
     thresholds = \
-    (DEFAULT_THRESHOLD * ((averages[0] * .15) + (medians[0].v * .15) + (maxes[0].v * .7)), \
-    DEFAULT_REACH_THRESH * ((averages[1] * .15) + (medians[1].sv * .15) + (maxes[1].sv * .7)))
+    (DEFAULT_THRESHOLD * ((averages[0] * .15) + (medians[0].v * .25) + (maxes[0].v * .6)), \
+    DEFAULT_REACH_THRESH * ((averages[1] * .15) + (medians[1].sv * .25) + (maxes[1].sv * .6)))
 
     if False:
         thresholds = \
@@ -734,13 +746,15 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 
             for i in range(len(goldenList)):
                 c = goldenList[i]
-                print('chunk = {0}'.format(c))
+                if verbose:
+                    print('chunk = {0}'.format(c))
                 sub = sourceFile.subclip(c.t_s, c.t_f)
                 concatenated_clips.append(sub)
                 try:
                     tmp_sub.close()
                 except:
-                    print(colored('Error closing clip during concatenation process!', print_color_error))
+                    if verbose:
+                        print(colored('Error closing clip during concatenation process!', print_color_error))
 
             concatenated_clip = mpye.concatenate_videoclips(concatenated_clips)
             concatenated_clip.write_videofile(base_name + '.mp4')
