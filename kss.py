@@ -40,7 +40,7 @@ clips_to_remove = []
 
 # default values
 # processing
-DEFAULT_THRESHOLD = 1
+DEFAULT_THRESHOLD = 1.2
 DEFAULT_PERIOD = 750
 DEFAULT_REACH_ITER = 3
 DEFAULT_REACH_THRESH = 1.15 * DEFAULT_THRESHOLD
@@ -187,7 +187,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         # saves time on reruns to skip if the file already exists
         if not k_xi(name):
             # export subclip
-            cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -c:v libx265 -c:a aac -strict 1 "{3}"'\
+            cmd = 'ffmpeg -y -i "{0}" -ss {1} -t {2} -c:v copy -c:a copy -strict 1 "{3}"'\
                 .format(filename, t_s, min(delta, file_length - t_s), name)
             print('[cmd] ~ {0}'.format(cmd))
             os.system(cmd)
@@ -277,7 +277,7 @@ def k_map(a, name):
             if verbose: print(colored('input list: \n' + inputs, print_color))
             file.write(inputs)
             #-fs 1GB
-        cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -c:v libx265 -c:a aac -strict 1 "{1}"' \
+        cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -c:v copy -c:a copy -strict 1 "{1}"' \
             .format(k_path(guide_file), k_path(name))
         print('cmd = ' + cmd)
         subprocess.call(cmd)
@@ -573,9 +573,9 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
     if not k_xi(name_audio):
 
         a_name_audio = input_audio \
-            .filter("afftdn", nr=6, nt="w", om="o") \
-            .filter("afftdn", nr=2, nt="w", om="o") \
             .filter("loudnorm")
+            #.filter("afftdn", nr=6, nt="w", om="o") \
+            #.filter("afftdn", nr=2, nt="w", om="o") \
         # clean up audio so program takes loudness of voice into account moreso than other sounds
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', print_color))
@@ -789,7 +789,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 
 # convert a video to an mp4
 def to_mp4(name): #-fs 1GB
-    subprocess.call('ffmpeg -y -i "{0}" -c:v libx265 -c:a aac -strict 1 "{1}"' \
+    subprocess.call('ffmpeg -y -i "{0}" -c:v copy -c:a copy -strict 1 "{1}"' \
         .format(name, name[:-4] + '.mp4'))
 
 
