@@ -74,7 +74,7 @@ DEFAULT_HEIGHT = 1080  # 1440
 DEFAULT_MAX_CHUNK_SIZE = .2 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = False
-cleanup = True
+cleanup = False
 dir = ''
 print_color = 'cyan'
 print_color_error = 'yellow'
@@ -148,6 +148,7 @@ def main():  # call is at the end
         .format(THRESHOLD, REACH_THRESH, PERIOD, REACH_ITER, WIDTH, HEIGHT) \
         .replace('.', '-') + '.mp4'
     #print('final video filename = {0}'.format(final_name))
+    print(main.duration)
     main.write_videofile(final_name)
     # clean up all clips
     if cleanup:
@@ -285,11 +286,6 @@ def k_map(a, name):
     if len(a) == 0:
         return None
     if len(a) == 1:
-        #inp = ffmpeg.input(b)
-        #print(inp)
-        #outp = ffmpeg.output(inp, name)
-        #render_(outp)
-        print('trying to open clip = {0}'.format(b))
         inp = mpye.VideoFileClip(b)
         try:
             inp.close()
@@ -309,7 +305,7 @@ def k_map(a, name):
                 fn = fn.replace('chunks\\', '')
                 inputs += 'file \'' + str(fn) + '\'\n'
             if verbose: print(colored('input list: \n' + inputs, print_color))
-            file.write(inputs)
+            file.write(inputs.strip())
             #-fs 1GB
         cmd = 'ffmpeg -y -f concat -safe 0 -i "{0}" -c:v copy -c:a copy -strict 1 "{1}"' \
             .format(k_path(guide_file), k_path(name))
@@ -392,8 +388,13 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             shutil.copy(smaller_clips[0], output_name + '.mp4')
         return mpye.VideoFileClip(output_name + '.mp4')
     elif len(smaller_clips) > 1:
-        if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
-        return k_map(smaller_clips, output_name + '.mp4')
+        if verbose:
+            print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
+        c_tmp = []
+        for o in smaller_clips:
+            c_tmp.append(mpye.VideoFileClip(o))
+        return mpye.concatenate_videoclips(c_tmp)
+        #return k_map(smaller_clips, output_name + '.mp4')
     else:
         return False
 
