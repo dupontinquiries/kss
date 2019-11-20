@@ -1,3 +1,6 @@
+## TODO: add folder selection and auto folder creation
+
+
 #imports
 
 from __future__ import unicode_literals
