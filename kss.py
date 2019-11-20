@@ -1,24 +1,41 @@
+#imports
+
 from __future__ import unicode_literals
-import statistics
-import cv2
+
+#av
+
+#video
+
 import ffmpeg
 from moviepy.video.io.ffmpeg_tools import *
 import moviepy
 import moviepy.editor as mpye
-from os.path import dirname, abspath
-import subprocess
+
+#audio
+
+import cv2
 from pydub import AudioSegment
 from pydub.utils import make_chunks
-#from moviepy.editor import concatenate_videoclips, concatenate_audioclips, VideoFileClip, AudioFileClip
-#from moviepy.editor import *
-# from moviepy import write_videofile
-# from math import *
-# import numpy
-from termcolor import colored
-# import tensorflow-gpu as tf
+
+#math
+
+import statistics
 import random
+
+#readability
+
+from termcolor import colored
+
+#fs
+
 import os
+from os.path import dirname, abspath
 import sys
+import shutil
+import subprocess
+
+#my stuff
+
 from k_chunk import k_chunk
 
 # import torch as torch
@@ -126,7 +143,7 @@ def main():  # call is at the end
         sys.exit(0)
     if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', print_color))
     main.write_videofile('final\\final_cut_with_props_{0}_{1}_{2}_{3}_{4}_{5}.mp4' \
-        .format(THRESHOLD, REACH_THRESH, PERIOD, REACH_ITER, WIDTH, HEIGHT), codec='libx265')
+        .format(THRESHOLD, REACH_THRESH, PERIOD, REACH_ITER, WIDTH, HEIGHT))
     # clean up all clips
     if cleanup:
         if verbose: print(colored('Cleaning up the space...', print_color))
@@ -369,8 +386,12 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             else:
                 print(colored('No data appended for chunk "{0}"' \
                     .format(file_name_chunk), print_color))
-    if len(smaller_clips) >= 1:
-        output_name = "final\\completed_file_" + base_name
+    output_name = "final\\completed_file_" + base_name
+    if len(smaller_clips) == 1:
+        if not k_xi(output_name + '.mp4'):
+            shutil.copy(smaller_clips[0], output_name + '.mp4')
+        return mpye.VideoFileClip(output_name + '.mp4')
+    if len(smaller_clips) > 1:
         if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
         return k_map(smaller_clips, output_name + '.mp4')
     else:
@@ -833,12 +854,14 @@ def create_timestamps(name):
 def create_video_list(a, ts=False):
     tmp = []
     for name in os.listdir(a):
-        if (os.path.isfile(name)):
+        if os.path.isfile(name):
             if verbose:
                 print(colored('Found file \"' + name + '\"', print_color))
             name_lower = name.lower()
             name_root = name_lower[:-4]
             name_ext = name_lower[-4:]
+            if name_ext in ['.mp3', '.wav', '.zip']:
+                continue
             if name_ext in ['.m2ts', '.mov']:
                 to_mp4(name)
                 os.rename(name, 'not_mp4\\' + name)

@@ -26,6 +26,7 @@ class k_chunk:
 
         self.source = source
 
+
     def gen_sv(self, sl, sr, l, i):
         t = 0
         n = 0
@@ -56,12 +57,12 @@ class k_chunk:
           return self.data[n]
 
 
-    def eqExact(self, b):
-        return (self.source == b.source \
-            and self.t_s == b.t_s \
-            and self.t_f == b.t_f \
-            and self.v == b.v \
-            and self.sv == b.sv)
+    #def eqExact(self, b):
+    #    return (self.source == b.source \
+    #        and self.t_s == b.t_s \
+    #        and self.t_f == b.t_f \
+    #        and self.v == b.v \
+    #        and self.sv == b.sv)
 
     def __eq__(self, b):
         return self.t_s == b.t_s and self.t_f == b.t_f
