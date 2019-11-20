@@ -71,7 +71,7 @@ DEFAULT_REACH_ITER = 10
 DEFAULT_REACH_THRESH = .9 * DEFAULT_THRESHOLD
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = 6 #1.2, 3.2, 10.2
+DEFAULT_MAX_CHUNK_SIZE = .2 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = False
 cleanup = True
@@ -118,15 +118,14 @@ def main():  # call is at the end
     print('dir = {0}'.format(os.getcwd()))
     if verbose: print(colored('root: ' + str(dir), print_color))
     if verbose: print(colored('Finding all video files...', print_color))
-    vid_arr = create_video_list(dir,
-                                False)  # dir, create time stamps and reorder based on time blocks, time block duration
+    vid_arr = create_video_list(dir, False)  # dir, create time stamps and reorder based on time blocks, time block duration
     if len(vid_arr) < 1:
         print(colored('No video files were found in \"' + dir + '\"!', print_color_error))
         sys.exit(0)
     if verbose: print(colored('Processing files...', print_color))
     # gather clips for main file
     maxi = max(1, len(vid_arr) - 1)
-    for w in range(0, max(1, len(vid_arr) - 1)):
+    for w in range(0, maxi):
         # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         process = distr(vid_arr[w], THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
         if process != False:
@@ -137,16 +136,19 @@ def main():  # call is at the end
             print(colored('An error was encoutered while adding file #' + str(w) + ' to the final video!', print_color_error))
     if verbose: print(colored('Your final video is almost ready...', print_color))
     main = None
-    if len(final_cuts) > 1:
-        main = mpye.concatenate_videoclips(final_cuts)
     if len(final_cuts) == 1:
         main = final_cuts[0]
+    elif len(final_cuts) > 1:
+        main = mpye.concatenate_videoclips(final_cuts)
     else:
         print(colored('No clips rendered!', print_color_error))
         sys.exit(0)
     if verbose: print(colored('Your final video has a length of ' + str(main.duration) + '!', print_color))
-    main.write_videofile('final\\final_cut_with_props_{0}_{1}_{2}_{3}_{4}_{5}.mp4' \
-        .format(THRESHOLD, REACH_THRESH, PERIOD, REACH_ITER, WIDTH, HEIGHT))
+    final_name = 'final\\final_cut_with_props_{0}_{1}_{2}_{3}_{4}_{5}' \
+        .format(THRESHOLD, REACH_THRESH, PERIOD, REACH_ITER, WIDTH, HEIGHT) \
+        .replace('.', '-') + '.mp4'
+    #print('final video filename = {0}'.format(final_name))
+    main.write_videofile(final_name)
     # clean up all clips
     if cleanup:
         if verbose: print(colored('Cleaning up the space...', print_color))
@@ -203,14 +205,14 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
     if verbose:
         print(colored('Finding length...', print_color))
     file_length = kFileCharacteristic(filename, 'nduration')
-    print('d = {0}'.format(file_length))
     max_chunk_size *= 60  # convert to seconds
     t_s = 0
     t_f = min(file_length, max_chunk_size)
     # itereate through the file and make chunks
     while file_length - t_s > 0:
         delta = t_f - t_s
-        print('t_s = {0}, t_f = {1}, d = {2}'.format(t_s, t_f, delta))
+        if verbose:
+            print('t_s = {0}, t_f = {1}, d = {2}'.format(t_s, t_f, delta))
         if file_length - t_f <= 0:
             yield False
         name = 'moviepy_subclip_{0}_{1}_from_{2}'\
@@ -229,9 +231,9 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         else:
             print('skipping chunk-rendering of clip \"' + name + '\"')
         #make an audio import to map streams better
-        if not k_xi(name[:-4] + '.wav'):
+        if not k_xi(name[:-4] + '.mp3'):
             cmd = 'ffmpeg -y -i "{0}" "{1}"'\
-                .format(name[:-4] + '.mp4', name[:-4] + '.wav')
+                .format(name[:-4] + '.mp4', name[:-4] + '.mp3')
             print('[cmd] ~ {0}'.format(cmd))
             os.system(cmd)
         #subprocess.run(cmd)
@@ -244,7 +246,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         # print('nav = ' + str(ret))
         try:
             ret_video = ffmpeg.input(name)
-            ret_audio = ffmpeg.input(name[:-4] + '.wav')
+            ret_audio = ffmpeg.input(name[:-4] + '.mp3')
         except:
             yield False
         if ret_video == None or ret_audio == None:
@@ -374,11 +376,6 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
             input_video = piece[0]
             input_audio = piece[1]
             file_name_chunk = piece[2]
-            file_size = 1 # file_size(file_name_chunk)
-            if file_size >= (10 ** 9):
-                if verbose:
-                    print('file {0} is large ({1})\n(Future Capability) Keeping the chunked clip as \"cc\"' \
-                        .format(file_name_chunk, file_size))
             if verbose:
                 print('Opening chunk \"{0}\"'.format(file_name_chunk))
             result = process_audio_loudness_over_time(input_video, input_audio, file_name_chunk, mod, c_l, spread, thresh_mod, crop_w, crop_h)
@@ -394,7 +391,7 @@ def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size
         if not k_xi(output_name + '.mp4'):
             shutil.copy(smaller_clips[0], output_name + '.mp4')
         return mpye.VideoFileClip(output_name + '.mp4')
-    if len(smaller_clips) > 1:
+    elif len(smaller_clips) > 1:
         if verbose: print(colored('Writing clip \'' + output_name + '.mp4' + '\' from smaller clips...', print_color))
         return k_map(smaller_clips, output_name + '.mp4')
     else:
@@ -594,10 +591,11 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
     base_name = 'fclips\\processed_output_from_' + name
     output_file = 'flcips\\filtered_and_processed_output_from_' + name
     if k_xi(output_file):
+        preint('tecca')
         return output_file
     # audio
-    name_audio = 'chunks\\tmp_a_from_' + name + '.wav'
-    name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.wav'
+    name_audio = 'chunks\\tmp_a_from_' + name + '.mp3'
+    name_audio_voice = 'chunks\\tmp_voice_opt_from_' + name + '.mp3'
     if verbose: print(colored('Preparing audio for video...', print_color))
     # video clip audio
     #set values for treatment type
@@ -637,8 +635,8 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
     a_voice = ffmpeg.input(name_audio_voice)
     # import the new voice_opt audio
     if verbose: print(colored('Establishing audio files...', print_color))
-    movie_a_fc = AudioSegment.from_wav(name_audio)
-    a_voices_fc = AudioSegment.from_wav(name_audio_voice)
+    movie_a_fc = AudioSegment.from_mp3(name_audio)
+    a_voices_fc = AudioSegment.from_mp3(name_audio_voice)
     if verbose: print(colored('Name of audio file is \"' + name_audio + '\"', print_color))
 
 
@@ -785,7 +783,6 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
 
 
     ret = ffmpeg.input(base_name + '.mp4')
-    print('tecca = ' + str(ret))
     movie_height = movie_v.h
     desired_height = crop_h
     movie_width = movie_v.w
@@ -808,18 +805,17 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
         print(colored('Writing filtered files...', print_color))
     #out_stream = ffmpeg.map_audio(base_v, base_a)
     output = ffmpeg.output(base_v, base_a, '{0}.mp4'.format(output_file))
-    print('juice = ' + str(output))
     render_(output)
     # output_v = ffmpeg.output(base_v, output_file + '_2.mp4')
-    # output_a = ffmpeg.output(base_a, output_file + '.wav')
+    # output_a = ffmpeg.output(base_a, output_file + '.mp3')
     # render_(output_v)
     # render_(output_a)
-    # subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.wav'
+    # subprocess.call('ffmpeg -y -i ' + output_file + '_2.mp4' + ' -i ' + output_file + '.mp3'
     #                + ' -fs 1GB -c:v libx265 -c:a aac -map 0:v:0 -map 1:a:0 ' + output_file + '.mp4')
     # subprocess.call('-c:v libx265 -c:a aac')
     # k_remove(output_file + '_2.mp4')
     clips_to_remove.append(output_file + '.mp4')
-    clips_to_remove.append(output_file + '.wav')
+    clips_to_remove.append(output_file + '.mp3')
     return output_file + '.mp4'
 
 
@@ -863,7 +859,7 @@ def create_video_list(a, ts=False):
             name_lower = name.lower()
             name_root = name_lower[:-4]
             name_ext = name_lower[-4:]
-            if name_ext in ['.mp3', '.wav', '.zip']:
+            if name_ext in ['.mp3', '.mp3', '.zip']:
                 continue
             if name_ext in ['.m2ts', '.mov']:
                 to_mp4(name)
