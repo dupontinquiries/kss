@@ -71,7 +71,7 @@ DEFAULT_REACH_ITER = 10
 DEFAULT_REACH_THRESH = .9 * DEFAULT_THRESHOLD
 DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
-DEFAULT_MAX_CHUNK_SIZE = .2 #1.2, 3.2, 10.2
+DEFAULT_MAX_CHUNK_SIZE = 10 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
 verbose = False
 cleanup = False
@@ -860,7 +860,7 @@ def create_video_list(a, ts=False):
             name_lower = name.lower()
             name_root = name_lower[:-4]
             name_ext = name_lower[-4:]
-            if name_ext in ['.mp3', '.mp3', '.zip']:
+            if name_ext in ['.mp3', '.wav', '.zip']:
                 continue
             if name_ext in ['.m2ts', '.mov']:
                 to_mp4(name)
