@@ -73,7 +73,7 @@ DEFAULT_WIDTH = 1920  # 2560
 DEFAULT_HEIGHT = 1080  # 1440
 DEFAULT_MAX_CHUNK_SIZE = 10 #1.2, 3.2, 10.2
 DEFAULT_TREATMENT = list(['voice', 'music'])[0]
-verbose = False
+verbose = True
 cleanup = False
 dir = ''
 print_color = 'cyan'
@@ -118,9 +118,10 @@ def main():  # call is at the end
     print('dir = {0}'.format(os.getcwd()))
     if verbose: print(colored('root: ' + str(dir), print_color))
     if verbose: print(colored('Finding all video files...', print_color))
-    #print(dir + '\\input')
+    #print(os.path.abspath(dir + '\\input'))
     #exit()
-    vid_arr = create_video_list(dir, False)  # dir, create time stamps and reorder based on time blocks, time block duration
+    subfolder = 'input'
+    vid_arr = create_video_list(dir, subfolder, False)  # dir, create time stamps and reorder based on time blocks, time block duration
     if len(vid_arr) < 1:
         print(colored('No video files were found in \"' + dir + '\"!', print_color_error))
         sys.exit(0)
@@ -129,7 +130,7 @@ def main():  # call is at the end
     maxi = max(1, len(vid_arr) - 1)
     for w in range(0, maxi):
         # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
-        process = distr(vid_arr[w], THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
+        process = distr(vid_arr[w], subfolder, THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
         if process != False:
             final_cuts.append(process)
             if verbose:
@@ -342,8 +343,8 @@ def mpy_concat(filenames, output_name):
     v_t.set_audio(a_t)
     v_t.write_videofile(output_name)
 
-def distr(filename, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size):
-    base_name = filename[:-4]
+def distr(filename, subfolder, mod, c_l, spread, thresh_mod, crop_w, crop_h, max_chunk_size):
+    base_name = filename[:-4].replace(subfolder, '')
     # compress any large files
     smaller_clips = []
     if verbose: print(colored('Verifying clip \"' + filename + '\"', print_color))
@@ -620,6 +621,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
         # clean up audio of final video
         if verbose: print(colored('Preparing tailored audio...', print_color))
         # export clip audio
+
         output = ffmpeg.output(a_name_audio, name_audio)
         if verbose: print(colored('Writing tailored audio...', print_color))
         render_(output)
@@ -856,10 +858,15 @@ def create_timestamps(name):
 
 
 # create video list
-def create_video_list(a, ts=False):
+def create_video_list(a, subfolder, ts=False):
     tmp = []
-    for name in os.listdir(a):
-        if os.path.isfile(name):
+    for name in os.listdir(a + '\\' + subfolder):
+        fullName = name
+        if len(subfolder) > 0:
+            fullName = subfolder + '\\' + name
+            print(name)
+            #exit()
+        if os.path.isfile(fullName):
             if verbose:
                 print(colored('Found file \"' + name + '\"', print_color))
             name_lower = name.lower()
@@ -872,11 +879,11 @@ def create_video_list(a, ts=False):
             if name_ext in ['.mp3', '.wav', '.zip']:
                 continue
             if name_ext in ['.m2ts', '.mov']:
-                to_mp4(name)
-                os.rename(name, 'not_mp4\\' + name)
+                to_mp4(fullName)
+                os.rename(fullName, 'not_mp4\\' + name)
                 name = name[:-4] + '.mp4'
             if 'subclip' not in name_root and 'output' not in name_root:
-                tmp.append(name)
+                tmp.append(fullName[:-4] + '.mp4')
             if ts:
                 create_timestamps(name)
     return tmp

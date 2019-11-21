@@ -1,4 +1,5 @@
 import os
+import shutil
 
 def kIn(a):
     b = input(a)
@@ -7,7 +8,8 @@ def kIn(a):
 
 
 def compressDir(dir):
-    for name in os.listdir(dir):
+    os.chdir(dir)
+    for name in os.listdir(os.getcwd()):
         inp = name
         name_ext = inp[-4:]
         if os.path.isfile(name):
@@ -20,7 +22,9 @@ def compressDir(dir):
             try:
                 out = name[:-4] + '_kCrawler.mp4'
                 cmd = 'ffmpeg -y -i "{0}" -fs {1}MB "{2}"' \
-                    .format(inp, fs, p + '\\' + out)
+                    .format(inp, fs, trueP + '\\' + out)
+                cmd = 'ffmpeg -y -i "{0}" -c:v libx265 "{1}"' \
+                    .format(inp, trueP + '\\' + out)
                 #os.system(cmd)
                 os.system('{0}' \
                     .format(cmd))
@@ -30,6 +34,7 @@ def compressDir(dir):
                     .format(name, out))
         else:
             compressDir(name)
+            os.chdir('../')
 
 
 d = 'M:\\2019\\Recordings 2019\\GoPro\\2019-11-09\\HERO8 BLACK 1'
@@ -50,7 +55,11 @@ p = 'program_results'
 if not os.path.exists(p):
     os.mkdir(p)
 
+trueP = os.path.abspath(p)
+
 compressDir(d)
+
+os.chdir(d)
 
 
 if not os.path.exists('../' + p):
