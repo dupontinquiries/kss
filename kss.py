@@ -118,6 +118,8 @@ def main():  # call is at the end
     print('dir = {0}'.format(os.getcwd()))
     if verbose: print(colored('root: ' + str(dir), print_color))
     if verbose: print(colored('Finding all video files...', print_color))
+    #print(dir + '\\input')
+    #exit()
     vid_arr = create_video_list(dir, False)  # dir, create time stamps and reorder based on time blocks, time block duration
     if len(vid_arr) < 1:
         print(colored('No video files were found in \"' + dir + '\"!', print_color_error))
@@ -218,6 +220,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
             yield False
         name = 'moviepy_subclip_{0}_{1}_from_{2}'\
             .format(t_s, t_f, filename)
+        rootName = name
         # generates a subclip to avoid memory caps
         # saves time on reruns to skip if the file already exists
         if not k_xi(name):
@@ -232,7 +235,7 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
         else:
             print('skipping chunk-rendering of clip \"' + name + '\"')
         #make an audio import to map streams better
-        if not k_xi(name[:-4] + '.mp3'):
+        if not k_xi(rootName + '.mp3'):
             cmd = 'ffmpeg -y -i "{0}" "{1}"'\
                 .format(name[:-4] + '.mp4', name[:-4] + '.mp3')
             print('[cmd] ~ {0}'.format(cmd))
@@ -553,6 +556,8 @@ def k_stats(cl):
         print('len(spread) = {0}\nlen(rem_spread) = {1}\npercentage = {2:.3f}' \
             .format(len(f_spread), len(rem_spread), len(rem_spread) / len(f_spread)))
 
+    avgP = .5 * (len(rem_solo) / len(f_solo)) + .5 * (len(rem_spread) / len(f_spread))
+
     k_quick_sort(rem_solo, 0, len(rem_solo) - 1, get_ts)
     k_quick_sort(rem_spread, 0, len(rem_spread) - 1, get_ts)
 
@@ -575,7 +580,7 @@ def k_stats(cl):
     # make dictionary of values anmd pass nack to parent function
     # add recursive tuning loop that can adjust threshold value by abs(.1 * floor) value
 
-    return (rem_solo, thresholds[0], rem_spread, thresholds[1], goldenList)
+    return (rem_solo, thresholds[0], rem_spread, thresholds[1], goldenList, avgP)
 
 def wrapper(func, *args):
     func(*args)
@@ -737,7 +742,7 @@ def process_audio_loudness_over_time(input_video, input_audio, name, mod_solo, c
             kc.append(c)
         # get list stats for pinpointing threshold
         # k_stats returns [f_spread, f_spread[ls // 2], statistics.average(f_spread), max(f_spread), f_solo, f_solo[ls // 2], statistics.average(f_solo), max(f_solo)]
-        rem_solo, thresh_solo, rem_spread, thresh_spread, goldenList = k_stats(kc)
+        rem_solo, thresh_solo, rem_spread, thresh_spread, goldenList, avgP = k_stats(kc)
 
         if len(rem_solo) < 1:
             print('no values passed')
@@ -860,6 +865,10 @@ def create_video_list(a, ts=False):
             name_lower = name.lower()
             name_root = name_lower[:-4]
             name_ext = name_lower[-4:]
+            if k_xi('fclips\\filtered_and_processed_output_from_' + name):
+                if verbose:
+                    print('skipping clip {0}'.format('fclips\\filtered_and_processed_output_from_' + name))
+                continue
             if name_ext in ['.mp3', '.wav', '.zip']:
                 continue
             if name_ext in ['.m2ts', '.mov']:

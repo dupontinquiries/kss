@@ -18,7 +18,7 @@ def compressDir(dir):
             if name in completedConversions:
                 continue
             try:
-                out = name[:-4] + '_comp.mp4'
+                out = name[:-4] + '_kCrawler.mp4'
                 cmd = 'ffmpeg -y -i "{0}" -fs {1}MB "{2}"' \
                     .format(inp, fs, p + '\\' + out)
                 #os.system(cmd)
@@ -29,7 +29,7 @@ def compressDir(dir):
                 print('Error compressing video: ({0} => {1}).' \
                     .format(name, out))
         else:
-            compressDir('name')
+            compressDir(name)
 
 
 d = 'M:\\2019\\Recordings 2019\\GoPro\\2019-11-09\\HERO8 BLACK 1'
@@ -51,3 +51,9 @@ if not os.path.exists(p):
     os.mkdir(p)
 
 compressDir(d)
+
+
+if not os.path.exists('../' + p):
+    os.mkdir('../' + p)
+
+shutil.move(p, '../' + p)
