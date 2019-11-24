@@ -67,13 +67,13 @@ class k_chunk:
     def __eq__(self, b):
         return self.t_s == b.t_s and self.t_f == b.t_f
 
-    def v():
+    def getV():
         return self.v
 
 
-    def sv():
+    def getSV():
         return self.sv
 
 
-    def t():
+    def getT():
         return (self.t_s, self.t_f)

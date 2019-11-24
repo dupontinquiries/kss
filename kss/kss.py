@@ -37,9 +37,14 @@ import sys
 import shutil
 import subprocess
 
+#GUI
+
+from tkinter import *
+
 #my stuff
 
 from k_chunk import k_chunk
+from kPath import kPath
 
 # import torch as torch
 
@@ -93,7 +98,7 @@ sessionId = randomString()
 print(colored('Session ' + sessionId + ' is running...'))
 
 
-def main():  # call is at the end
+def main(vInPathField, vOutPathField):
     # create actual variables
     THRESHOLD = DEFAULT_THRESHOLD
     REACH_THRESH = DEFAULT_REACH_THRESH
@@ -105,6 +110,9 @@ def main():  # call is at the end
     # initialize list for concatenation
     final_cuts = []
     # find directory
+    if vInPathField is vInPathFieldDefault:
+
+    if vOutPathField is vOutPathFieldDefault:
     dir = ''
     try:
         if dir is not '':
@@ -902,4 +910,48 @@ def get_length(filename):
 # with tf.device("/cpu:0"):
 # print("current device = " + str(torch.cuda.current_device()))
 # with torch.cuda.device(1):
-main()
+
+if __name__ == '__main__':
+
+    window = Tk()
+    mF = Frame(window)
+    mF.pack()
+
+    #topFrame = Frame(mF)
+    #topFrame.pack(side=TOP)
+
+    #button1 = Button(topFrame, text='Top 1')
+    #button1.pack(side=LEFT)
+    #button2 = Button(topFrame, text='Top 2')
+    #button2.pack(side=RIGHT)
+
+    bottomFrame = Frame(mF)
+    bottomFrame.pack(side=BOTTOM)
+
+    inputDescFeild = Text(bottomFrame, height=30, width=90)
+    inputDescFeild.pack()
+    inputDescFeildText = 'Hello'
+    inputDescFeild.insert(END, inputDescFeildText)
+
+    vInPathField = StringVar()
+    inPathField = Entry(bottomFrame, textvariable=vInPathField)
+    inPathField.bind("<FocusIn>", lambda args: inPathField.delete('0', 'end'))
+    inPathField.pack()
+    vInPathFieldDefault = 'Location of input footage...'
+    vInPathField.set(vInPathFieldDefault)
+
+    vOutPathField = StringVar()
+    outPathField = Entry(bottomFrame, textvariable=vOutPathField)
+    outPathField.bind("<FocusIn>", lambda args: outPathField.delete('0', 'end'))
+    outPathField.pack()
+    vOutPathFieldDefault = 'Desired output location...'
+    vOutPathField.set(vOutPathFieldDefault)
+
+    quitButton = Button(bottomFrame, text='Quit', command=window.destroy())
+    quitButton.pack(side=LEFT)
+    goButton = Button(bottomFrame, text='GO!', command=main(kPath(vInPathField.get()), kPath(vOutPathField.get())))
+    goButton.pack(side=RIGHT)
+
+    window.mainloop()
+    exit()
+    #main()
