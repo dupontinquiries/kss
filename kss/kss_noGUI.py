@@ -127,7 +127,7 @@ def main():  # call is at the end
         sys.exit(0)
     if verbose: print(colored('Processing files...', print_color))
     # gather clips for main file
-    maxi = max(1, len(vid_arr) - 1)
+    maxi = max(1, len(vid_arr))# - 1)
     for w in range(0, maxi):
         # concat = trim_silent(ffmpeg.input(vid_arr[w+1]), w)
         process = distr(vid_arr[w], subfolder, THRESHOLD, PERIOD, REACH_ITER, REACH_ITER, WIDTH, HEIGHT, MAX_CHUNK_SIZE)
