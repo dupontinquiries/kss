@@ -22,8 +22,16 @@ class kPath:
 
     def append(self, w):
         v = self.p + '\\' + w
+        tv = self.aPath + '\\' + w
+        if not os.path.exists(tv):
+            os.mkdir(tv)
+            print('had to make the directory "{0}"'.format(tv))
         #print('appending "{0}" \nto get this: "{1}"'.format(w, v))
         return kPath(v)
+
+
+    def structure():
+        return ''
 
 
     def hitch(self, w):
@@ -58,4 +66,4 @@ class kPath:
 
 
     def exists(self):
-        return os.path.exists(self.p)
+        return os.path.exists(self.aPath)

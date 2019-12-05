@@ -9,7 +9,7 @@ def kIn(a):
     return b
 
 
-def compressDir(root, inD, outD, fs, completedConversions=set(), failedConversions=set()):
+def compressDir(root, inD, outD, fs, completedConversions, failedConversions, subF):
     """
     root = hard path of parent folder
     inD  = directory of videos to compress; changes with recursion
@@ -32,7 +32,14 @@ def compressDir(root, inD, outD, fs, completedConversions=set(), failedConversio
                 continue
             if fPath.aPath() in completedConversions:
                 continue
-            out = outD.append(nameRoot).hitch('_kCrawler.mp4')
+            out = outD
+            if subF != '':
+                out = out.append(subF)
+            if not out.exists():
+                os.mkdir(out.aPath())
+                print('Tokyo')
+            out = out.append(nameRoot)
+            out = out.hitch('_kCrawler.mp4')
             if out.exists():
                 continue
             cmd = 'ffmpeg -y -i "{0}" -c:v libx265 -c:a aac "{1}"' \
@@ -40,7 +47,13 @@ def compressDir(root, inD, outD, fs, completedConversions=set(), failedConversio
             os.system('{0}'.format(cmd))
             completedConversions.add(fPath.aPath())
         else:
-            compressDir(root, inD.append(name), outD, fs, completedConversions, failedConversions)
+            subFB = subF
+            if subF != '':
+                subF = subF + '\\'
+            subF = subF + name
+            print('subF was ({0}) now ({1})'.format(subFB, subF))
+            compressDir(root, inD.append(name), outD, fs, completedConversions, failedConversions, subF) #add path changes here as a string and append it to the outD
+            subF = ''
 
 
 root = 'M:\\2019\\Recordings 2019\\GoPro\\2019-11-09\\HERO8 BLACK 1'
@@ -63,4 +76,4 @@ os.chdir(root.aPath())
 completedConversions = set()
 failedConversions = set()
 
-compressDir(root, root, outD, fs)
+compressDir(root, root, outD, fs, set(), set(), '')
