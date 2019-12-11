@@ -37,7 +37,6 @@ def compressDir(root, inD, outD, fs, completedConversions, failedConversions, su
                 out = out.append(subF)
             if not out.exists():
                 os.mkdir(out.aPath())
-                print('Tokyo')
             out = out.append(nameRoot)
             out = out.hitch('_kCrawler.mp4')
             if out.exists():
@@ -51,6 +50,9 @@ def compressDir(root, inD, outD, fs, completedConversions, failedConversions, su
             if subF != '':
                 subF = subF + '\\'
             subF = subF + name
+            if not outD.append(subF).exists():
+                if inD.append(subF).isFolder():
+                    outD.append(subF).make()
             print('subF was ({0}) now ({1})'.format(subFB, subF))
             compressDir(root, inD.append(name), outD, fs, completedConversions, failedConversions, subF) #add path changes here as a string and append it to the outD
             subF = ''
@@ -68,8 +70,8 @@ if fs:
 
 outD = kPath(root.append('../program_results'))
 
-if not os.path.exists(outD.aPath()):
-    os.mkdir(outD.aPath())
+if not outD.exists():
+    outD.make()
 
 os.chdir(root.aPath())
 
