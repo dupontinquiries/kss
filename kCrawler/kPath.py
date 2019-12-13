@@ -5,7 +5,7 @@ class kPath:
         if isinstance(p, kPath):
             p = p.aPath()
         self.p = os.path.abspath(p)
-        print(self.p)
+        #print(self.p)
         #if not os.path.exists(self.p) and self.p[-4] != '.':
             #os.mkdir(self.p)
             #print('had to make the directory "{0}"'.format(self.p))

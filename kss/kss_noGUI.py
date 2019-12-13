@@ -213,12 +213,16 @@ def read_in_ffmpeg_chunks(filename, max_chunk_size):
     t_s = 0
     t_f = min(file_length, max_chunk_size)
     if file_length < max_chunk_size:
+        ret_video = None
+        ret_audio = None
         try:
-            ret_video = ffmpeg.input(name)
+            ret_video = ffmpeg.input(filename)
             ret_audio = ret_video.audio
         except:
-            return False
-        return (ret_video, ret_audio, name)
+            yield False
+        if ret_video == None or ret_audio == None:
+            yield False
+        yield (ret_video, ret_audio, filename)
     # itereate through the file and make chunks
     while file_length - t_s > 0:
         delta = t_f - t_s
