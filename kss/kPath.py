@@ -5,9 +5,8 @@ class kPath:
         if isinstance(p, kPath):
             p = p.aPath()
         self.p = os.path.abspath(p)
-        if not os.path.exists(self.p) and os.path.isdir(self.p):
+        if not os.path.exists(self.p) and self.p[-4] != '.':
             os.mkdir(self.p)
-            print('had to make the directory "{0}"'.format(self.p))
 
 
     def __eq__(self, b):
@@ -20,18 +19,25 @@ class kPath:
         return kPath(v)
 
 
+    def cascadeCreate(self, p):
+        pChunks = p.split('\\')
+        s = pChunks[0]
+        end = len(pChunks)
+        for i in range(1, end):
+            s += '\\' + pChunks[i]
+            if s[-4] == '.' or 'mp4' in p:
+                continue
+            elif not os.path.exists(s):
+                os.mkdir(s)
+
+
     def append(self, w):
         v = self.p + '\\' + w
-        tv = self.aPath + '\\' + w
-        if not os.path.exists(tv):
-            os.mkdir(tv)
-            print('had to make the directory "{0}"'.format(tv))
-        #print('appending "{0}" \nto get this: "{1}"'.format(w, v))
         return kPath(v)
 
 
-    def structure():
-        return ''
+    def make(self):
+        os.mkdir(self.p)
 
 
     def hitch(self, w):
@@ -53,6 +59,10 @@ class kPath:
         #self.p[-4] == '.' and
 
 
+    def isFolder(self):
+        return not os.path.isfile(self.p)
+
+
     def isDir(self):
         return os.path.isdir(self.p)
 
@@ -66,4 +76,4 @@ class kPath:
 
 
     def exists(self):
-        return os.path.exists(self.aPath)
+        return os.path.exists(self.p)
