@@ -51,7 +51,8 @@ def compressDir(root, inD, outD, fs, completedConversions, failedConversions, su
             nameExt = name[-4:]
             if nameExt in ['.mp3', '.wav', '.zip']:
                 continue
-            if 'mp4' not in nameExt.lower():
+            if nameExt.lower() not in ['.mp4', '.mkv']:
+                print(name)
                 continue
             if fPath.aPath() in completedConversions:
                 continue

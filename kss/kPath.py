@@ -42,7 +42,6 @@ class kPath:
 
     def hitch(self, w):
         v = self.p + w
-        #print('hitching "{0}" \nto get this: "{1}"'.format(w, v))
         return kPath(v)
 
 
@@ -56,7 +55,6 @@ class kPath:
 
     def isFile(self):
         return os.path.isfile(self.p)
-        #self.p[-4] == '.' and
 
 
     def isFolder(self):
@@ -77,3 +75,26 @@ class kPath:
 
     def exists(self):
         return os.path.exists(self.p)
+
+
+    def getDuration(self):
+        if self.path()[-4:] in extList:
+            result = subprocess.Popen(["ffprobe", filename], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            return [x for x in result.stdout.readlines() if "Duration" in x]
+        else return -1
+
+
+    def chunk(self):
+        if self.path()[-4:] in extList:
+            list = list()
+            d = self.getDuration()
+            if d < 0:
+                return None
+            n = self.getDuration() // DEFAULT_MAX_CHUNK_SIZE
+            video = mpye.VideoFileClip()
+            for i in range(0, n - 1):
+                list.append(video.subclip(i * DEFAULT_MAX_CHUNK_SIZE, (i + 1) * DEFAULT_MAX_CHUNK_SIZE))
+            list.append((i + 1) * DEFAULT_MAX_CHUNK_SIZE, video.duration)
+        return list
+        else:
+            return None

@@ -1,6 +1,6 @@
 class k_chunk:
 
-    DEFAULT_FLOOR = -500
+    DEFAULT_FLOOR = -1000
     v = 0
     sv = 0
     data = []
@@ -57,15 +57,9 @@ class k_chunk:
           return self.data[n]
 
 
-    #def eqExact(self, b):
-    #    return (self.source == b.source \
-    #        and self.t_s == b.t_s \
-    #        and self.t_f == b.t_f \
-    #        and self.v == b.v \
-    #        and self.sv == b.sv)
-
     def __eq__(self, b):
         return self.t_s == b.t_s and self.t_f == b.t_f
+
 
     def getV():
         return self.v

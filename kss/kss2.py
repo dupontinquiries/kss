@@ -40,9 +40,12 @@ import sys
 import shutil
 import subprocess
 
+import tensorflow as tf
+import numpy as np
+
 #my stuff
 
-#from k_chunk import k_chunk
+#from kChunk import kChunk
 #from kPath import kPath
 
 # functions
@@ -61,9 +64,11 @@ presetDefaults = \
     [1.43, 390, 3, .99, 1280, 720, 10 * 60, 'voice'],
 'vodCastPro':
     [1.35, 350, 4, .9, 1920, 1080, 10 * 60, 'voice'],
+'normalizedDefault':
+    [.2, 35000, 4, 1, 1920, 1080, 10 * 60, 'voice']
 }
 
-sp = presetDefaults['vodCast']
+sp = presetDefaults['normalizedDefault']
 # default values
 # processing
 DEFAULT_THRESHOLD = sp[0]
@@ -95,7 +100,7 @@ class kPath:
     def __init__(self, p):
         if isinstance(p, kPath):
             p = p.aPath()
-        self.p = os.path.abspath(p
+        self.p = os.path.abspath(p)
         if not os.path.exists(self.p) and self.p[-4] != '.':
             os.mkdir(self.p)
 
@@ -169,10 +174,11 @@ class kPath:
 
 
     def getDuration(self):
-        if self.path()[-4:] in extList:
-            result = subprocess.Popen(["ffprobe", filename], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if self.p[-4:] in extList:
+            result = subprocess.Popen(["ffprobe", self.p], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             return [x for x in result.stdout.readlines() if "Duration" in x]
-        else return -1
+        else:
+            return -1
 
 
     def chunk(self):
@@ -194,84 +200,46 @@ class kPath:
                 (i + 1) * DEFAULT_MAX_CHUNK_SIZE,
                 video.duration
             )
-        return list
+            return list
         else:
             return None
 
 
-class k_chunk:
+    def getProcessedVideo(self):
+        clips = list()
+        k = mpye.VideoFileClip(self.p)
+        if k.duration > DEFAULT_MAX_CHUNK_SIZE:
+            clips = k.chunk(DEFAULT_MAX_CHUNK_SIZE)
+        else:
+            clips.append(k)
+        if len(clips) is 1:
+            return k
+        elif len(clips) is 0:
+            return None
+        else:
+            return clips
 
-    DEFAULT_FLOOR = -1000
+
+class kChunk:
+
     v = 0
-    sv = 0
     data = []
-    timestamp = None
 
-    def __init__(self, i=0, l=[], sl=1, sr=1, t_s=0, t_f=1, source=None, dud=False):
-        self.data = list()
-        self.i = i
-        if dud:
-            self.v = 0
-            self.sv = 0
-        else:
-            self.v = self.floor_out(l[i].dBFS, self.DEFAULT_FLOOR)
-            self.sv = self.gen_sv(sl, sr, l, i)
-        self.t_s = t_s
-        self.t_f = t_f
-        self.d = t_f - t_s
-
-        self.data.append(self.v)
-        self.data.append(self.sv)
-
-        self.timestamp = (self.t_s, self.t_f)
-
-        self.source = source
-
-
-    def gen_sv(self, sl, sr, l, i):
-        t = 0
-        n = 0
-        for o in range(max(0, i - sl), min(len(l) - 1, i + sr)):
-            add = self.floor_out(l[o].dBFS, self.DEFAULT_FLOOR)
-            t += add
-            n += 1
-        avg = t / n
-        return avg
-
-
-    def floor_out(self, a, bottom):
-        if a < bottom:
-            return bottom
-        else:
-            return a
-
+    def __init__(self, content, ts, tf, volume, sourceName):
+        self.content = content
+        self.ts = ts
+        self.tf = tf
+        self.timestamp = (self.ts, self.tf)
+        self.volume = volume
+        self.sourceName = sourceName
+        self.data += [self.content, self.ts, self.tf, self.volume, self.sourceName]
 
     def __repr__(self):
-        return repr('[CHUNK] @ {0}, v = {1:.2f}, sv = {2:.2f}'.format(self.timestamp, self.v, self.sv))
-
-
-    def __setitem__(self, n, data):
-          self.data[n] = data
-
-
-    def __getitem__(self, n):
-          return self.data[n]
+        return repr('[CHUNK] @ {0}, v = {1:.3f}'.format(self.timestamp, self.volume))
 
 
     def __eq__(self, b):
-        return self.t_s == b.t_s and self.t_f == b.t_f
-
-
-    def getV():
-        return self.v
-
-
-    def getSV():
-        return self.sv
-
-
-    def getT():
-        return (self.t_s, self.t_f)
+        return self.t_s == b.t_s and self.t_f == b.t_f and self.sourceName == b.sourceName
 
 
 class kss2:
@@ -281,71 +249,101 @@ class kss2:
     workD = None
     outD = None
 
-    def __init__(self, sessID, inD, workD, outD = ''):
+    def __init__(self, sessID, inD, workD, outD):
         self.sessID = sessID
         self.inD = inD
         self.workD = workD
-        if len(outD) > 0:
-            self.outD = self.inD.append('output')
-        else:
-            self.outD = outD
         vidList = self.vidList(inD)
-        pvL = list()
-        for v in vidList:
-            pv = self.getProcessedVideo(v)
+        import cv2
+        from pydub import AudioSegment
+        from pydub.utils import make_chunks
+        import math
+        spreadCalc = DEFAULT_REACH_ITER // 2
+        chuLenMS = DEFAULT_PERIOD
+        chuLenS = chuLenMS / 1000
+        apList = []
+        videoChunks = []
+        for v in vidList: #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
+            #create tmp files
+            nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
             grab = None
-            if pv.getLength() > DEFAULT_MAX_CHUNK_SIZE:
-                grab = pv.chunk()
+            if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
+                ffmpeg.input(v.aPath()).filter("afftdn", nr=6, nt="w", om="o").output(nameAP).run(overwrite_output=True)
+            pv = v.getProcessedVideo()
+            if pv.duration > DEFAULT_MAX_CHUNK_SIZE:
+                grab = v.chunk()
             else:
-                grab = pv
-            pvL.append(grab)
+                grab = [pv]
+            #for item in grab:
+            audioProcess = AudioSegment.from_mp3(nameAP)
+            chunksProcess = make_chunks(audioProcess, chuLenMS)
+            iterations = math.floor(pv.duration / chuLenS)
+            for i in range(iterations - 1):
+                ts = i * chuLenS
+                tf = (i + 1) * chuLenS
+                videoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
+            chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300), chunksProcess))
+            apList += chunksProcess
+            del pv
+        #...and normalize
+        #apList = list(map(lambda x: x + 300, chunksProcess))
+        #print(self.normalize(apList, self.defaultGet))
+        #print(list(filter(lambda x: 1 < x or 0 > x, (self.normalize(apList, self.defaultGet) + 1) / 2)))
+        #apNorm = (apList - np.mean(apList)) / np.ptp(apList)
+        apNorm = (self.normalize(apList, self.defaultGet) + 1) / 2
+        finalClip = []
+        print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
+        for i in range(0, len(videoChunks) - 1):
+            if apNorm[i] >= DEFAULT_THRESHOLD or self.computeSV(videoChunks, i) >= DEFAULT_REACH_THRESH:
+                finalClip.append(videoChunks[i])
+        print(f'len(finalClip) = {len(finalClip)}')
+        finalClip = list(map(lambda d: d.content, finalClip))
+        outputMovie = mpye.concatenate_videoclips(finalClip)
+        outputMovie.write_videofile(outD.append('output.mp4').aPath(), codec='libx265')
 
+
+    def kSum(self, list, func):
+        s = 0
+        for o in list:
+            s += func(o)
+        return s
+
+
+    def computeSV(self, list, i):
+        minimum = max(0, i - (DEFAULT_REACH_ITER // 2))
+        maximum = min(len(list) - 1, i + (DEFAULT_REACH_ITER // 2))
+        s = self.kSum(list[minimum:maximum], self.getV) / max(1, maximum - minimum)
+        return s
 
 
     def vidList(self, k):
         fSet = list(os.listdir(k.aPath()))
-        kF = list()
-        for o in fSet:
-            kF.append(k.append(o))
-        vids = \
-        sorted(
-            list(
-
-            #filter(lambda v: v.isFile ? , fSet)
-            filter(lambda v: v[-4:].lower() in extList, fSet)
-
-            )
-        )
+        vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
+        vids = list(map(lambda v: k.append(v), vids))
         return vids
 
 
-    def getProcessedVideo(self, k):
-        clips = list()
-        if k.getDuration() > DEFAULT_MAX_CHUNK_SIZE:
-            clips = k.chunk(DEFAULT_MAX_CHUNK_SIZE)
-        else:
-            clips.append(k)
-        if len(clips) is 1:
-            return k
-        elif len(clips) is 0:
-            return None
-        else return clips
-
-
-    def defaultGet(element):
+    def defaultGet(self, element):
         return element
 
 
-    def getSV(element):
-        return element.getSV()
+    def getV(self, element):
+        return element.volume
 
 
-    def getV(element):
-        return element.getV()
+    def getDBFS(self, element):
+        return element.dBFS
+
+
+    def floor_out(self, a, bottom):
+        if a < bottom:
+            return bottom
+        else:
+            return a
 
 
     def normalize(self, list, fn):
-        values = list()
+        values = []
         for o in list:
             values.append(fn(o))
         norm = np.linalg.norm(list)
@@ -362,5 +360,5 @@ if __name__ == '__main__':
     sessID = randomString()
     workD = kPath(dirname(abspath(__file__)) + "\\footage")
     inD = workD.append('input')
-    outD = ''
+    outD = workD.append('output')
     kss2(sessID, inD, workD, outD)
