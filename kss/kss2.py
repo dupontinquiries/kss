@@ -65,7 +65,7 @@ presetDefaults = \
 'vodCastPro':
     [1.35, 350, 4, .9, 1920, 1080, 10 * 60, 'voice'],
 'normalizedDefault':
-    [.2, 35000, 4, 1, 1920, 1080, 10 * 60, 'voice']
+    [.4, 180, 12, .9, 1920, 1080, 10 * 60, 'voice']
 }
 
 sp = presetDefaults['normalizedDefault']
@@ -258,13 +258,19 @@ class kss2:
         from pydub import AudioSegment
         from pydub.utils import make_chunks
         import math
+        import sys
         spreadCalc = DEFAULT_REACH_ITER // 2
         chuLenMS = DEFAULT_PERIOD
         chuLenS = chuLenMS / 1000
         apList = []
         videoChunks = []
-        for v in vidList: #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
-            #create tmp files
+        self.x = 100
+        self.progress_x = 0
+        self.title = 'chunking'
+        self.startProgress()
+        length = len(vidList)
+        for i in range(length - 1): #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
+            v = vidList[i]
             nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
             grab = None
             if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
@@ -285,6 +291,8 @@ class kss2:
             chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300), chunksProcess))
             apList += chunksProcess
             del pv
+            self.x += 50 // length
+            self.progress()
         #...and normalize
         #apList = list(map(lambda x: x + 300, chunksProcess))
         #print(self.normalize(apList, self.defaultGet))
@@ -293,13 +301,34 @@ class kss2:
         apNorm = (self.normalize(apList, self.defaultGet) + 1) / 2
         finalClip = []
         print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
-        for i in range(0, len(videoChunks) - 1):
+        length = len(videoChunks)
+        for i in range(length - 1):
             if apNorm[i] >= DEFAULT_THRESHOLD or self.computeSV(videoChunks, i) >= DEFAULT_REACH_THRESH:
                 finalClip.append(videoChunks[i])
+            self.x += 50 // length
+            self.progress()
         print(f'len(finalClip) = {len(finalClip)}')
         finalClip = list(map(lambda d: d.content, finalClip))
+        self.endProgress()
+        print(finalClip)
         outputMovie = mpye.concatenate_videoclips(finalClip)
         outputMovie.write_videofile(outD.append('output.mp4').aPath(), codec='libx265')
+
+
+    def startProgress(self):
+        sys.stdout.write(self.title + ": [" + "-"*40 + "]" + chr(8)*41)
+        sys.stdout.flush()
+        self.progress_x = 0
+
+    def progress(self):
+        x = int(self.x * 40 // 100)
+        sys.stdout.write("#" * (x - self.progress_x))
+        sys.stdout.flush()
+        self.progress_x = x
+
+    def endProgress(self):
+        sys.stdout.write("#" * (40 - self.progress_x) + "]\n")
+        sys.stdout.flush()
 
 
     def kSum(self, list, func):
