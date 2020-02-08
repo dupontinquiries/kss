@@ -262,45 +262,52 @@ class kss2:
         self.title = 'chunking'
         #self.startProgress()
         length = len(vidList)
-        for i in range(length - 1): #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
+        for i in range(length): #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
             v = vidList[i]
             nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
-            grab = None
+            #grab = None
             if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
                 ffmpeg.input(v.aPath()).filter("afftdn", nr=6, nt="w", om="o").output(nameAP).run(overwrite_output=True)
             pv = v.getProcessedVideo()
-            if pv.duration > DEFAULT_MAX_CHUNK_SIZE:
-                grab = v.chunk()
-            else:
-                grab = [pv]
-            #for item in grab:
+            #if pv.duration > DEFAULT_MAX_CHUNK_SIZE:
+            #    grab = v.chunk()
+            #else:
+            #    grab = [pv]
             audioProcess = AudioSegment.from_mp3(nameAP)
             chunksProcess = make_chunks(audioProcess, chuLenMS)
             iterations = math.floor(pv.duration / chuLenS) #len(chunksProcess)
-            #print('\r\n')
-            #print('v = ', iterations, len(chunksProcess))
-            #exit()
+            print('\r\n')
+            print('v = ', iterations, len(chunksProcess))
             for i in range(iterations):
                 ts = i * chuLenS
                 tf = (i + 1) * chuLenS
+                if (tf > pv.duration):
+                    print('\r\nvideo length exceeded!!!')
+                    tf = pv.duration
                 videoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
-            chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300), chunksProcess))
-            apList.append(chunksProcess)
+            chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300) * -1, chunksProcess))
+            ###print('\r\n', chunksProcess)
+            apList += chunksProcess
             del pv
             self.x += 50 // length
             #self.progress()
-        #...and normalize
-        #apList = list(map(lambda x: x + 300, chunksProcess))
-        #print(self.normalize(apList, self.defaultGet))
-        #print(list(filter(lambda x: 1 < x or 0 > x, (self.normalize(apList, self.defaultGet) + 1) / 2)))
-        #apNorm = (apList - np.mean(apList)) / np.ptp(apList)
-        print(len(apList))
-        apNorm = (self.normalize(apList, self.defaultGet) + 1) / 2
+        ###print(apList)
+        #apNorm = list(self.normalize(apList, self.defaultGet))
+        max = 0
+        for i in range (len(apList)):
+            if max < apList[i]:
+                max = apList[i]
+        for i in range (len(apList)):
+            apList[i] /= max
+        ###print(apList)
+        ###exit()
         finalClip = []
-        print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
+        ###print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
         length = len(videoChunks)
-        for i in range(length - 1):
-            if apNorm[i] >= DEFAULT_THRESHOLD or self.computeSV(videoChunks, i) >= DEFAULT_REACH_THRESH:
+        for i in range(length):
+            ###print('\r\napNorm[i] = ', apNorm[i])
+            ###print('\r\nself.computeSV(vc, i) = ', self.computeSV(videoChunks, i))
+            if apList[i] >= DEFAULT_THRESHOLD or self.computeSV(videoChunks, i) >= DEFAULT_REACH_THRESH:
                 finalClip.append(videoChunks[i])
             self.x += 50 // length
             self.progress()
