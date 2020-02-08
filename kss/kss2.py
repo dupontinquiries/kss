@@ -40,7 +40,7 @@ import sys
 import shutil
 import subprocess
 
-import tensorflow as tf
+#import tensorflow as tf
 import numpy as np
 
 #my stuff
@@ -65,7 +65,7 @@ presetDefaults = \
 'vodCastPro':
     [1.35, 350, 4, .9, 1920, 1080, 10 * 60, 'voice'],
 'normalizedDefault':
-    [.4, 180, 12, .9, 1920, 1080, 10 * 60, 'voice']
+    [.6, 180, 12, .9, 1920, 1080, 10 * 60, 'voice']
 }
 
 sp = presetDefaults['normalizedDefault']
@@ -179,27 +179,20 @@ class kPath:
             return [x for x in result.stdout.readlines() if "Duration" in x]
         else:
             return -1
+        #new format => Duration: 00:23:10.57,
 
 
     def chunk(self):
-        if self.path()[-4:] in extList:
-            list = list()
-            d = self.getDuration()
+        if self.path()[-4:].lower() in extList:
+            list = []
+            video = mpye.VideoFileClip(self.p)
+            d = video.duration
             if d < 0:
                 return None
-            n = self.getDuration() // DEFAULT_MAX_CHUNK_SIZE
-            video = mpye.VideoFileClip()
+            n = int(d // DEFAULT_MAX_CHUNK_SIZE)
             for i in range(0, n - 1):
-                list.append(
-                    video.subclip(
-                        i * DEFAULT_MAX_CHUNK_SIZE,
-                        (i + 1) * DEFAULT_MAX_CHUNK_SIZE
-                    )
-                )
-            list.append(
-                (i + 1) * DEFAULT_MAX_CHUNK_SIZE,
-                video.duration
-            )
+                list.append(video.subclip(i * DEFAULT_MAX_CHUNK_SIZE, (i + 1) * DEFAULT_MAX_CHUNK_SIZE))
+            #list.append((i + 1) * DEFAULT_MAX_CHUNK_SIZE, video.duration)
             return list
         else:
             return None
@@ -209,15 +202,15 @@ class kPath:
         clips = list()
         k = mpye.VideoFileClip(self.p)
         if k.duration > DEFAULT_MAX_CHUNK_SIZE:
-            clips = k.chunk(DEFAULT_MAX_CHUNK_SIZE)
+            clips = self.chunk()
         else:
             clips.append(k)
         if len(clips) is 1:
             return k
-        elif len(clips) is 0:
-            return None
+        elif len(clips) is 0 and clips is not None:
+            return k
         else:
-            return clips
+            return None
 
 
 class kChunk:
@@ -264,10 +257,10 @@ class kss2:
         chuLenS = chuLenMS / 1000
         apList = []
         videoChunks = []
-        self.x = 100
+        self.x = 100 #set max length of progress bar
         self.progress_x = 0
         self.title = 'chunking'
-        self.startProgress()
+        #self.startProgress()
         length = len(vidList)
         for i in range(length - 1): #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
             v = vidList[i]
@@ -283,21 +276,25 @@ class kss2:
             #for item in grab:
             audioProcess = AudioSegment.from_mp3(nameAP)
             chunksProcess = make_chunks(audioProcess, chuLenMS)
-            iterations = math.floor(pv.duration / chuLenS)
-            for i in range(iterations - 1):
+            iterations = math.floor(pv.duration / chuLenS) #len(chunksProcess)
+            #print('\r\n')
+            #print('v = ', iterations, len(chunksProcess))
+            #exit()
+            for i in range(iterations):
                 ts = i * chuLenS
                 tf = (i + 1) * chuLenS
                 videoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
             chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300), chunksProcess))
-            apList += chunksProcess
+            apList.append(chunksProcess)
             del pv
             self.x += 50 // length
-            self.progress()
+            #self.progress()
         #...and normalize
         #apList = list(map(lambda x: x + 300, chunksProcess))
         #print(self.normalize(apList, self.defaultGet))
         #print(list(filter(lambda x: 1 < x or 0 > x, (self.normalize(apList, self.defaultGet) + 1) / 2)))
         #apNorm = (apList - np.mean(apList)) / np.ptp(apList)
+        print(len(apList))
         apNorm = (self.normalize(apList, self.defaultGet) + 1) / 2
         finalClip = []
         print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
@@ -312,7 +309,7 @@ class kss2:
         self.endProgress()
         print(finalClip)
         outputMovie = mpye.concatenate_videoclips(finalClip)
-        outputMovie.write_videofile(outD.append('output.mp4').aPath(), codec='libx265')
+        outputMovie.write_videofile(outD.append('output.mp4').aPath()) #, codec='libx265')
 
 
     def startProgress(self):
