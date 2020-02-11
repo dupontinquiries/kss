@@ -41,12 +41,8 @@ import sys
 import shutil
 import subprocess
 
-#time
-
-from datetime import date
-
 #import tensorflow as tf
-#import numpy as np
+import numpy as np
 
 #my stuff
 
@@ -118,6 +114,7 @@ class kPath:
 
     def chop(self):
         v = kPath('\\'.join(self.p.split('\\')[:-1]))
+        #print('chopping from: "{0}"\n to: "{1}"'.format(self.p, v))
         return kPath(v)
 
 
@@ -185,6 +182,7 @@ class kPath:
             return [x for x in result.stdout.readlines() if "Duration" in x]
         else:
             return -1
+        #new format => Duration: 00:23:10.57,
 
 
     def chunk(self):
@@ -197,6 +195,7 @@ class kPath:
             n = int(d // DEFAULT_MAX_CHUNK_SIZE)
             for i in range(0, n - 1):
                 list.append(video.subclip(i * DEFAULT_MAX_CHUNK_SIZE, (i + 1) * DEFAULT_MAX_CHUNK_SIZE))
+            #list.append((i + 1) * DEFAULT_MAX_CHUNK_SIZE, video.duration)
             return list
         else:
             return None
@@ -264,44 +263,68 @@ class kss2:
         self.x = 100 #set max length of progress bar
         self.progress_x = 0
         self.title = 'chunking'
-        self.startProgress()
+        #self.startProgress()
         length = len(vidList)
-        for i in range(length): #now make a list of kChunks so that the program can sticth video and audio in the next iteration
+        for i in range(length): #now make this invigorate a list of kChunks so that the program can sticth video and audio in the next iteration
             v = vidList[i]
             nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
+            #grab = None
             if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
                 ffmpeg.input(v.aPath()).filter("afftdn", nr=6, nt="w", om="o").output(nameAP).run(overwrite_output=True)
             pv = v.getProcessedVideo()
+            #if pv.duration > DEFAULT_MAX_CHUNK_SIZE:
+            #    grab = v.chunk()
+            #else:
+            #    grab = [pv]
             audioProcess = AudioSegment.from_mp3(nameAP)
             chunksProcess = make_chunks(audioProcess, chuLenMS)
-            iterations = math.floor(pv.duration / chuLenS) + 1
-            for i in range(len(chunksProcess)):
+            iterations = math.floor(pv.duration / chuLenS) + 1 #len(chunksProcess)
+            ###print('\r\n')
+            ###print('v = ', iterations, len(chunksProcess))
+            for i in range(len(chunksProcess) - 1):
                 ts = i * chuLenS
                 tf = (i + 1) * chuLenS
                 if (tf > pv.duration):
+                    ###print('\r\nvideo length exceeded!!!')
                     tf = pv.duration
                 videoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
+            ###print(f'max = {sorted(list(map(lambda x: self.floor_out(x.dBFS, -300) + 300, chunksProcess)))}')
             chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300) + 300, chunksProcess))
+            ###print('\r\n', chunksProcess)
             apList += chunksProcess
             del pv
             self.x += 50 // length
+            #self.progress()
+        ###print(apList)
+        #apNorm = list(self.normalize(apList, self.defaultGet))
         max = 0
-        for i in range(len(apList)): #normalize data
+        for i in range (len(apList)):
             if max < apList[i]:
                 max = apList[i]
         for i in range (len(apList)):
-            apList[i] /= (0.9 * 300) + (0.1 * max) # max
-        finalClip = [] #build final clip
-        for i in range(len(apList)):
+            apList[i] /= 300 # max
+        ###print(apList)
+        ###exit()
+        finalClip = []
+        ###print(f'len(videoChunks) = {len(videoChunks)}, len(apNorm) = {len(apNorm)}')
+        ###length = len(videoChunks)
+        ###print(f'vt = {DEFAULT_THRESHOLD}, svt = {DEFAULT_REACH_THRESH}')
+        for i in range(length):
+            ###print('\r\napNorm[i] = ', apNorm[i])
+            ###print('\r\nself.computeSV(vc, i) = ', self.computeSV(videoChunks, i))
+            ###print(f' [outside] v = {apList[i]}, sv = {self.computeSV(apList, i)}')
             if apList[i] >= DEFAULT_THRESHOLD or self.computeSV(apList, i) >= DEFAULT_REACH_THRESH:
+                print(f' [inside] v = {apList[i]}, sv = {self.computeSV(apList, i)}')
                 finalClip.append(videoChunks[i])
             self.x += 50 // length
             self.progress()
+        ###print(f'len(finalClip) = {len(finalClip)}')
         finalClip = list(map(lambda d: d.content, finalClip))
-        self.endProgress()
+        #self.endProgress()
         print('\r\n')
+        ###print(finalClip)
         outputMovie = mpye.concatenate_videoclips(finalClip)
-        outputMovie.write_videofile(outD.append(f'[kss2] ({date.today()}) output.mp4').aPath()) #, codec='libx265')
+        outputMovie.write_videofile(outD.append('output.mp4').aPath()) #, codec='libx265')
 
 
     def startProgress(self):
