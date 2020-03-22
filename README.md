@@ -1,4 +1,4 @@
-# Kitchen Silence Splitter ![]()
+# Kitchen Silence Splitter ![](https://raw.githubusercontent.com/dupontinquiries/kss/master/kss_github_logo_v2.png)
 
 The Kitchen Silence Splitter, or KSS, is a python program that trims videos based on their volume.
 
