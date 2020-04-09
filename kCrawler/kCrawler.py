@@ -65,8 +65,10 @@ def compressDir(root, inD, outD, fs, completedConversions, failedConversions, su
             out = out.hitch('_kCrawler.mp4')
             if out.exists():
                 continue
-            cmd = 'ffmpeg -y -i "{0}" -c:v libx265 -c:a aac "{1}"' \
-                .format(fPath, out)
+            cmd = ( f'ffmpeg -y -i "{fPath}" -c:v libx265 -crf 19'
+                +   f' -level 3.1 -preset slow'
+                +   f' -sws_flags lanczos -c:a aac -b:a 192k -vbr 5 "{out}"' )
+            #cmd = f'ffmpeg -y -i "{fPath}" -c:v libx265 -c:a aac "{out}"'
             #print(outD)
             #print(cmd)
             os.system('{0}'.format(cmd))
