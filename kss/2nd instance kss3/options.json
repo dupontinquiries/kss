@@ -14,11 +14,11 @@
     "find_videos_with_formats": [".mp4", ".mkv"]
   },
   "processing_options": {
-    "selected_mode": "vodCastPro",
+    "selected_mode": "videogame3",
     "modes": {
       "videogame1": [0.93, 1450, 2, 1.0, 1920, 1080, 20, "game"],
       "videogame2": [0.93, 650, 6, 0.95, 1920, 1080, 20, "game"],
-      "videogame3": [0.65, 850, 2, 1.05, 1920, 1080, 20, "game"],
+      "videogame3": [0.83, 800, 2, 1.05, 1920, 1080, 20, "game"],
       "musicProduction1": [0.6, 750, 1, 1.3, 1920, 1080, 30, "music"],
       "musicProduction2": [0.7, 550, 1, 1.3, 1920, 1080, 30, "music"],
       "vodCast": [1.43, 390, 3, 0.99, 1280, 720, 10, "voice"],

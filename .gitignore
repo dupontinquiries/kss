@@ -1,6 +1,10 @@
 /footage
 /kss/footage
+/kss/kav/footage
+/kss/2nd instance kss3/footage
 /ignore
 /k_dump
 /tests
 *.mp4
+*.mp3
+*.wav
