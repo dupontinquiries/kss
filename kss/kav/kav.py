@@ -31,7 +31,7 @@ import random
 
 #readability
 
-from termcolor import colored
+#from termcolor import colored
 
 #fs
 

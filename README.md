@@ -1,13 +1,13 @@
-# Kitchen Silence Splitter ![](https://raw.githubusercontent.com/dupontinquiries/kss/master/kss_github_logo_v2.png)
+# KSS: Kitchen Silence Splitter ![](kss_github_logo_v2.png)
 
 The Kitchen Silence Splitter, or KSS, is a python program that trims videos based on their volume.
 
 ## Installation - coming soon!
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
+Use [pip](https://pip.pypa.io/en/stable/) to install packages.
 
 ```bash
-pip install foobar
+pip install [package_name]
 ```
 
 ## Usage
@@ -21,17 +21,16 @@ Create a directory in the same folder as __kss2.py__ named __footage__, and add 
 Ensure you have __ffmpeg-python__ and __moviepy__, as well as:
  - opencv-python
  - pydub
- - termcolor
 
 ### Running the Program
 
-Run __kss2.py__ and let the program run.
+Find the most recent version (__kss3.py__) and run it.  Don't forget to check options.txt!
 
 ```python
-python kss2.py
+python kss3.py
 ```
 
-The completed file will show up in the folder named __final__.
+The completed file will show up in the folder named __output__ by default.
 
 ## Contributing
 Feel free to fork and make something awesome!
@@ -40,17 +39,13 @@ Feel free to fork and make something awesome!
 [GNU](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
 
-# kCrawler
+# kCrawler: File Management
 
-kCrawler is a python program that compresses large folders of videos. It uses ffmpeg to encode videos in the [h.265 (HEVC)](http://x265.org/) format.
+kCrawler is an automation tool for seamlessly compressing large numbers of videos.
 
-## Installation - coming soon!
+## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
-
-```bash
-pip install foobar
-```
+The installation for KSS should cover everything needed for kCrawler.
 
 ## Usage
 
@@ -60,7 +55,7 @@ Locate the directory that holds your input folder.  A new folder called __progra
 
 ### Setting Up the Environment
 
-Ensure you have __ffmpeg__ installed and check that it is __added it to your environment variables__.
+Ensure you have __ffmpeg__ installed (on your system, not through pip via ffmpeg-python) and check that it is __added it to your environment variables__.
 
 ### Running the Program
 
