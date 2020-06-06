@@ -142,16 +142,21 @@ class kPath:
             return -1
 
 
-    def chunk(self):
-        list = []
+    def chunk(self): #does no checking
+        chunks = list()
         video = mpye.VideoFileClip(self.p)
         d = video.duration
-        if d < 0:
-            return None
-        n = int(d // DEFAULT_MAX_CHUNK_SIZE)
-        for i in range(0, n - 1):
-            list.append(video.subclip(i * DEFAULT_MAX_CHUNK_SIZE, (i + 1) * DEFAULT_MAX_CHUNK_SIZE))
-        return list
+        n = int(d) // DEFAULT_MAX_CHUNK_SIZE + 1
+        mt = DEFAULT_MAX_CHUNK_SIZE
+        for i in range(n):
+            time = (i * mt, (i + 1) * mt)
+            if time[1] > d:
+                subclip = video.subclip(i * mt, d)
+                chunks.append(subclip)
+                break
+            subclip = video.subclip(time[0], time[1])
+            chunks.append(subclip)
+        return chunks
 
     def getProcessedVideo(self):
         clips = list()
@@ -159,18 +164,24 @@ class kPath:
         if k.duration > DEFAULT_MAX_CHUNK_SIZE:
             clips = self.chunk()
         else:
-            clips.append(k)
-        if len(clips) is 1:
-            return k
-        elif len(clips) is 0 and clips is not None:
-            return k
+            return (False, None, k)
+        print(f"getPV returned: {clips}")
+        #if len(clips) > 1: #as array
+        if type(clips) is list:
+            print("this return")
+            return (True, clips, k)
         else:
-            return None
+            return (False, None, k)
+        #elif len(clips) is 1: #as single clip
+        #    return k[0]
+        #elif len(clips) is 0 and clips is not None: #as single clip
+        #    return k
+        #else:
+        #    return None
 
 #kChunk handles storing audio data
 class kChunk:
 
-    v = 0
     data = []
 
     def __init__(self, content, ts, tf, volume, sourceName):
@@ -182,12 +193,20 @@ class kChunk:
         self.sourceName = sourceName
         self.data += [self.content, self.ts, self.tf, self.volume, self.sourceName]
 
+
     def __repr__(self):
         return repr('[CHUNK] @ {0}, v = {1:.3f}'.format(self.timestamp, self.volume))
 
 
     def __eq__(self, b):
         return self.t_s == b.t_s and self.t_f == b.t_f and self.sourceName == b.sourceName
+
+
+    def floor_out(self, bottom):
+        if self.volume < bottom:
+            return bottom
+        self.volume -= bottom
+        return self
 
 #kss provides the process for making the edits
 class kss:
@@ -197,6 +216,8 @@ class kss:
         self.inD = inD
         self.workD = workD
         vidList = self.vidList(inD)
+        #print(f"vidList = {vidList}")
+        #exit()
         import cv2
         from pydub import AudioSegment
         from pydub.utils import make_chunks
@@ -205,12 +226,9 @@ class kss:
         spreadCalc = DEFAULT_REACH_ITER // 2
         chuLenMS = DEFAULT_PERIOD
         chuLenS = chuLenMS / 1000
-        apList = []
-        videoChunks = []
-        self.x = 100 #set max length of progress bar
-        self.progress_x = 0
-        self.title = 'chunking'
-        self.startProgress()
+        apList = list()
+        videoChunks = list()
+        tmpVideoChunks = list()
         length = len(vidList)
         for i in range(length): #now make a list of kChunks so that the program can sticth video and audio in the next iteration
             v = vidList[i]
@@ -219,10 +237,9 @@ class kss:
                 if DEFAULT_TREATMENT == 'game':
                     (
                     ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=19000).filter('highpass', f=15)
-                        .filter('extrastereo', m=1.5)
-                        .filter('equalizer', f=20, t='q', w=0.5, g=0.6)
-                        .filter('equalizer', f=80, t='q', w=0.5, g=-0.3)
+                        .filter('lowpass', f=18000).filter('highpass', f=20) #.filter('extrastereo', m=1.3)
+                        .filter('equalizer', f=20, t='q', w=0.5, g=0.4)
+                        .filter('equalizer', f=80, t='q', w=0.5, g=0.1)
                         .filter('equalizer', f=20000, t='q', w=0.3, g=0.2) #.filter('dynaudionorm', f=630, g=201, m=0.5)
                         .filter('afftdn', nr=1, nt="w", om="o")
                         .output(nameAP).run(overwrite_output=True)
@@ -237,7 +254,15 @@ class kss:
                 if DEFAULT_TREATMENT == 'voice':
                     (
                     ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=20000).filter('highpass', f=20)
+                        .filter('lowpass', f=18000).filter('highpass', f=20)
+                        .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
+                        .filter('afftdn', nr=1, nt="w", om="o")
+                        .output(nameAP).run(overwrite_output=True)
+                    )
+                if DEFAULT_TREATMENT == 'focusedVoice':
+                    (
+                    ffmpeg.input(v.aPath())
+                        .filter('lowpass', f=17000).filter('highpass', f=40)
                         .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
                         .filter('afftdn', nr=1, nt="w", om="o")
                         .output(nameAP).run(overwrite_output=True)
@@ -245,51 +270,85 @@ class kss:
                 if DEFAULT_TREATMENT == 'noisy':
                     (
                     ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=19000).filter('highpass', f=80)
+                        .filter('lowpass', f=18000).filter('highpass', f=80)
                         .filter('afftdn', nr=4, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=1)
                         .filter('afftdn', nr=2, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=0.5)
                         .filter('afftdn', nr=1, nt="w", om="o")
                         .output(nameAP).run(overwrite_output=True)
                     )
-            pv = v.getProcessedVideo()
-            if pv == None:
-                #print(f'None encountered!\r\n')
-                continue
-            # if game or music, add processed audio to videos
-            if DEFAULT_TREATMENT in ['game', 'music']:
-                pv.audio = mpye.AudioFileClip(nameAP)
-            if DEFAULT_TREATMENT in ['noisy']:
-                # if noisy, clean up noise
-                pv.audio = mpye.AudioFileClip(nameAP)
-            audioProcess = AudioSegment.from_mp3(nameAP)
-            chunksProcess = make_chunks(audioProcess, chuLenMS)
-            iterations = math.floor(pv.duration / chuLenS) + 1
-            for i in range(len(chunksProcess)):
-                ts = i * chuLenS
-                tf = (i + 1) * chuLenS
-                if (tf > pv.duration - 1):
-                    tf = pv.duration
-                videoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
-            chunksProcess = list(map(lambda x: self.floor_out(x.dBFS, -300) + 300, chunksProcess))
-            apList += chunksProcess
-            del pv
-            self.x += 50 // length
-            self.progress()
+            pvBool, pvList, pvc = v.getProcessedVideo()
+            if pvList == None:
+                print("None encountered")
+            if pvBool == True:
+                print("a: " + str(pvBool))
+                print("b: " + str(pvList))
+                print("c: " + str(pvc))
+                print("\n")
+                pvc.audio = mpye.AudioFileClip(nameAP)
+                audioProcess = AudioSegment.from_mp3(nameAP)
+                chunksProcess = make_chunks(audioProcess, chuLenMS)
+                iterations = math.floor(pvc.duration / chuLenS) + 1
+                totalChunks = 0
+                for scn in range(len(pvList)): #subclip in pv:
+                    subclip = pvList[scn]
+                    #nameAP = workD.append('chunks').append(v.path().split('.')[0] + 'chunk' + i + '.mp3').aPath()
+                    dur = subclip.duration
+                    print(f"dur = {dur}")
+                    #videoChunks = list(map(lambda i: , chunksProcess))
+                    tmpVideoChunks = list()
+                    lcp = len(chunksProcess)
+                    for i in range(lcp):
+                        ts = i * chuLenS
+                        tf = (i + 1) * chuLenS
+                        #ts += scn * DEFAULT_MAX_CHUNK_SIZE
+                        #tf += scn * DEFAULT_MAX_CHUNK_SIZE
+                        if totalChunks > lcp:
+                            break
+                        if ts >= dur:
+                            break
+                        if (tf >= dur):
+                            tf = dur
+                            print("   here")
+                            #tmpVideoChunks.append(kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP))
+                            #totalChunks += 1
+                            break
+                        tmpVideoChunks.append(kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP))
+                        totalChunks += 1
+                    tmpVideoChunks = list(map(lambda x: x.floor_out(-500), tmpVideoChunks))
+                    apList += tmpVideoChunks
+                    del subclip
+            else: #single clip
+                pvc.audio = mpye.AudioFileClip(nameAP)
+                audioProcess = AudioSegment.from_mp3(nameAP)
+                chunksProcess = make_chunks(audioProcess, chuLenMS)
+                dur = pvc.duration
+                iterations = math.floor(dur / chuLenS) + 1
+                for i in range(len(chunksProcess)):
+                    ts = i * chuLenS
+                    tf = (i + 1) * chuLenS
+                    if ts >= dur:
+                        break
+                    if (tf >= dur):
+                        tf = dur
+                        #tmpVideoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
+                        break
+                    tmpVideoChunks.append(kChunk(pv.subclip(ts, tf), ts, tf, chunksProcess[i].dBFS, nameAP))
+                for ch in tmpVideoChunks:
+                    ch = ch.floor_out(-500)
+                #tmpVideoChunks = list(map(lambda x: x.floor_out(-500), tmpVideoChunks))
+                apList += tmpVideoChunks
+                del pv
         max = 0
-        for i in range(len(apList)): #normalize data
-            if max < apList[i]:
-                max = apList[i]
+        #for i in range(len(apList)): #find rel max in data
+        #    if max < apList[i]:
+        #        max = apList[i]
         for i in range (len(apList)):
-            apList[i] /= (1.0 * 300) # + (0.1 * max) # max
-        finalClip = [] #build final clip
+            apList[i].volume /= (1.0 * 500) # + (0.1 * max) # max
+        finalClip = list() #build final clip
         for i in range(len(apList)):
-            if apList[i] >= DEFAULT_THRESHOLD or self.computeSV(apList, i) >= DEFAULT_REACH_THRESH:
+            if apList[i].volume >= DEFAULT_THRESHOLD or self.computeSV(apList, i) >= DEFAULT_REACH_THRESH:
                 finalClip.append(videoChunks[i])
-            self.x += 50 // length
-            self.progress()
         finalClip = list(map(lambda d: d.content, finalClip))
-        self.endProgress()
-        print('\r\n')
         outputMovie = mpye.concatenate_videoclips(finalClip)
         #labeling options
         tag = ''
