@@ -14,7 +14,7 @@
     "find_videos_with_formats": [".mp4", ".mov", ".mkv"]
   },
   "processing_options": {
-    "selected_mode": "minecraft",
+    "selected_mode": "normalizedDefault",
     "modes": {
       "minecraft": [0.9, 750, 4, 1.2, 1920, 1080, 20, "music"],
       "vodCast": [1.43, 390, 3, 0.99, 1280, 720, 10, "voice"],

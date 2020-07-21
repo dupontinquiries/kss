@@ -158,6 +158,10 @@ class kPath:
             chunks.append(subclip)
         return chunks
 
+
+    def getFullVideo(self):
+        return mpye.VideoFileClip(self.p)
+
     def getProcessedVideo(self):
         clips = list()
         k = mpye.VideoFileClip(self.p)
@@ -190,12 +194,13 @@ class kChunk:
         self.tf = tf
         self.timestamp = (self.ts, self.tf)
         self.volume = volume
+        self.sv = None
         self.sourceName = sourceName
         self.data += [self.content, self.ts, self.tf, self.volume, self.sourceName]
 
 
     def __repr__(self):
-        return repr('[CHUNK] @ {0}, v = {1:.3f}'.format(self.timestamp, self.volume))
+        return repr('[CHUNK] @ {0}, v = {1:.3f}, sv = {2:.3f}'.format(self.timestamp, self.volume, self.sv))
 
 
     def __eq__(self, b):
@@ -211,71 +216,140 @@ class kChunk:
 #kss provides the process for making the edits
 class kss:
 
+    def extractAudio(self, i, vidList):
+        v = vidList[i]
+        nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
+        if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
+            if DEFAULT_TREATMENT == 'game':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=20) .filter('extrastereo', m=1.3)
+                    .filter('equalizer', f=20, t='q', w=0.5, g=0.4)
+                    .filter('equalizer', f=80, t='q', w=0.5, g=0.1)
+                    .filter('equalizer', f=20000, t='q', w=0.3, g=0.2)
+                    .filter('dynaudionorm', f=630, g=201, m=0.5)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'music':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=20000).filter('highpass', f=20)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'voice':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=20)
+                    .filter('deesser').filter('dynaudionorm', f=230, g=71, m=3)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'focusedVoice':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=17000).filter('highpass', f=40)
+                    .filter('deesser')
+                    .filter('dynaudionorm', f=230, g=71, m=3)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'noisy':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=80)
+                    .filter('afftdn', nr=4, nt="w", om="o")
+                    .filter('dynaudionorm', f=330, g=101, m=1)
+                    .filter('afftdn', nr=2, nt="w", om="o")
+                    .filter('dynaudionorm', f=330, g=101, m=0.5)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+        return v
+
+    def chunkAudio(self, v):
+        pvc = v.getFullVideo()
+        # create tandem mp3 audio
+        af = workD.append("footage").append("chunks").append(f"chunk_{randomString(7)}.mp3")
+        AudioFileClip(af.aPath())
+        a = AudioSegment.from_mp3(nameAP)
+        packets = make_chunks(a, chuLenMS)
+        # make 5 minute segments to process simultaneously
+        n = pvc.duration // 300
+        subclips = list()
+        for i in range(n):
+            ts = n * 300
+            tf = (n + 1) * 300
+            tf = max(tf, pvc.duration)
+            subclips.append(pvc.subclip(ts, tf))
+
+        self.tmpChunks = list()
+        self.tmpCounter = 0
+        executor = concurrent.futures.ProcessPoolExecutor(61)
+        futures = [executor.submit(self.appendChunks, subclips[i], i)
+                   for i in range(len(subclips))]
+        # run code in the meantime
+        concurrent.futures.wait(futures)
+        # order in case concurrent was out of order
+        self.tmpChunks = sorted(self.tmpChunks, key=lambda element: (element[0], element[1]))
+        for i in range(len(self.tmpChunks)):
+            i1 = max(0, i - spreadCalc)
+            i2 = min(len(self.tmpChunks), i + spreadCalc)
+            self.tmpChunks[i].sv = sum(list(map(lambda x: x.volume, self.tmpChunks[i1:i2])) / max(1, i2 - i1))
+        print(self.tmpChunks)
+        os.remove(af.aPath())
+        exit()
+
+
+    def appendChunks(self, subclip):
+        self.tmpCounter += 1
+        chunks = list()
+        n = subclip.duration // chuLenS
+        for i in range(n):
+            ts = n * chuLenS
+            tf = (n + 1) * chuLenS
+            tf = max (tf, pvc.duration)
+            self.tmpChunks.append((self.tmpCounter, i, kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP)))
+
+
     def __init__(self, sessID, inD, workD, outD):
         self.sessID = sessID
         self.inD = inD
         self.workD = workD
         vidList = self.vidList(inD)
-        #print(f"vidList = {vidList}")
-        #exit()
         import cv2
         from pydub import AudioSegment
         from pydub.utils import make_chunks
         import math
         import sys
-        spreadCalc = DEFAULT_REACH_ITER // 2
+        spreadCalc = DEFAULT_REACH_ITER
         chuLenMS = DEFAULT_PERIOD
         chuLenS = chuLenMS / 1000
         apList = list()
         videoChunks = list()
         tmpVideoChunks = list()
         length = len(vidList)
+        import concurrent
+        import threading
+        executor = concurrent.futures.ProcessPoolExecutor(61)
+        futures = [executor.submit(self.extractAudio, i, vidList)
+                   for i in range(length)]
+        # run code in the meantime
+        concurrent.futures.wait(futures)
+        # run code once preprocessed audio is ready
+
+        # create chunk lists
+        self.chunkList = list()
+        executor = concurrent.futures.ProcessPoolExecutor(61)
+        futures = [executor.submit(self.chunkAudio, vidList[i])
+                   for i in range(length)]
+        # run code in the meantime
+        concurrent.futures.wait(futures)
+        # run code once chunks are ready
+        print(f"vidList [s={len(vidList)}] = {vidList}")
+        exit()
         for i in range(length): #now make a list of kChunks so that the program can sticth video and audio in the next iteration
-            v = vidList[i]
-            nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
-            if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
-                if DEFAULT_TREATMENT == 'game':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=20) #.filter('extrastereo', m=1.3)
-                        .filter('equalizer', f=20, t='q', w=0.5, g=0.4)
-                        .filter('equalizer', f=80, t='q', w=0.5, g=0.1)
-                        .filter('equalizer', f=20000, t='q', w=0.3, g=0.2) #.filter('dynaudionorm', f=630, g=201, m=0.5)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'music':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=20000).filter('highpass', f=20)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'voice':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=20)
-                        .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'focusedVoice':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=17000).filter('highpass', f=40)
-                        .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'noisy':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=80)
-                        .filter('afftdn', nr=4, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=1)
-                        .filter('afftdn', nr=2, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=0.5)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
             pvBool, pvList, pvc = v.getProcessedVideo()
             if pvList == None:
                 print("None encountered")

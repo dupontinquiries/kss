@@ -41,7 +41,15 @@ import sys
 import shutil
 import subprocess
 
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_audio
+
 import json
+
+import cv2
+from pydub import AudioSegment
+from pydub.utils import make_chunks
+import math
+import sys
 
 #time
 
@@ -158,6 +166,10 @@ class kPath:
             chunks.append(subclip)
         return chunks
 
+
+    def getFullVideo(self):
+        return mpye.VideoFileClip(self.p)
+
     def getProcessedVideo(self):
         clips = list()
         k = mpye.VideoFileClip(self.p)
@@ -190,12 +202,13 @@ class kChunk:
         self.tf = tf
         self.timestamp = (self.ts, self.tf)
         self.volume = volume
+        self.sv = None
         self.sourceName = sourceName
         self.data += [self.content, self.ts, self.tf, self.volume, self.sourceName]
 
 
     def __repr__(self):
-        return repr('[CHUNK] @ {0}, v = {1:.3f}'.format(self.timestamp, self.volume))
+        return repr('[CHUNK] @ {0}, v = {1:.3f}, sv = {2:.3f}'.format(self.timestamp, self.volume, self.sv))
 
 
     def __eq__(self, b):
@@ -211,71 +224,158 @@ class kChunk:
 #kss provides the process for making the edits
 class kss:
 
+    def extractAudio(self, i, vidList):
+        v = vidList[i]
+        nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
+        if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
+            if DEFAULT_TREATMENT == 'game':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=20) .filter('extrastereo', m=1.3)
+                    .filter('equalizer', f=20, t='q', w=0.5, g=0.4)
+                    .filter('equalizer', f=80, t='q', w=0.5, g=0.1)
+                    .filter('equalizer', f=20000, t='q', w=0.3, g=0.2)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'music':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=20000).filter('highpass', f=20)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'voice':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=20)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'focusedVoice':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=17000).filter('highpass', f=40)
+                    .filter('deesser')
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+            if DEFAULT_TREATMENT == 'noisy':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=18000).filter('highpass', f=80)
+                    .filter('afftdn', nr=4, nt="w", om="o")
+                    .filter('afftdn', nr=2, nt="w", om="o")
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
+        return v
+
+    def testHello(self):
+        print("hello func")
+
+    def chunkAudio(self, v):
+        print(f"chunkAudio session {randomString(4)}")
+        pvc = v.getFullVideo()
+        # create tandem mp3 audio
+        af = self.workD.append("chunks").append(f"chunk_{randomString(7)}.mp3")
+        print(f"created temporary file {af.path()}")
+        ffmpeg_extract_audio(v.aPath(), af.aPath()) #, ffmpeg_params=["-preset","fast"])
+        a = AudioSegment.from_mp3(af.aPath())
+        print(a)
+        packets = make_chunks(a, self.chulenms)
+        print(f"dividing clip")
+        # make 5 minute segments to process simultaneously
+        n = pvc.duration // 300
+        subclips = list()
+        for i in range(len(packets)):
+            ts = i * 300
+            tf = (i + 1) * 300
+            tf = max(tf, pvc.duration)
+            subclips.append(pvc.subclip(ts, tf))
+
+        self.tmpChunks = list()
+        self.tmpCounter = 0
+        print(f"preparing jobs for list of size {len(subclips)}")
+        job = []
+        for i in range(len(subclips)):
+            process = multiprocessing.Process(target=self.appendChunks, args=(subclips[i], i))
+            jobs.append(process)
+            print(f"[{i}] new job")
+
+        # Start the processes (i.e. calculate the random number lists)
+        for j in jobs:
+            j.start()
+
+        # Ensure all of the processes have finished
+        for j in jobs:
+            j.join()
+
+        print(f"aggregated all chunks")
+
+        # order in case concurrent was out of order
+        self.tmpChunks = sorted(self.tmpChunks, key=lambda element: (element[0], element[1]))
+        print(f"organized all chunks")
+        for i in range(len(self.tmpChunks)):
+            i1 = max(0, i - spreadCalc)
+            i2 = min(len(self.tmpChunks), i + spreadCalc)
+            self.tmpChunks[i].sv = sum(list(map(lambda x: x.volume, self.tmpChunks[i1:i2])) / max(1, i2 - i1))
+        print(f"spread volumes calculated")
+        print(self.tmpChunks)
+        af.delete() #os.remove(af.aPath())
+        print(f"destroyed temporary file {af.path()}")
+        exit()
+
+
+    def appendChunks(self, subclip):
+        self.tmpCounter += 1
+        chunks = list()
+        n = subclip.duration // chuLenS
+        for i in range(n):
+            ts = n * chuLenS
+            tf = (n + 1) * chuLenS
+            tf = max (tf, pvc.duration)
+            self.tmpChunks.append((self.tmpCounter, i, kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP)))
+
+
     def __init__(self, sessID, inD, workD, outD):
         self.sessID = sessID
         self.inD = inD
         self.workD = workD
         vidList = self.vidList(inD)
-        #print(f"vidList = {vidList}")
-        #exit()
-        import cv2
-        from pydub import AudioSegment
-        from pydub.utils import make_chunks
-        import math
-        import sys
-        spreadCalc = DEFAULT_REACH_ITER // 2
-        chuLenMS = DEFAULT_PERIOD
-        chuLenS = chuLenMS / 1000
+        spreadCalc = DEFAULT_REACH_ITER
+        self.chulenms = DEFAULT_PERIOD
+        chuLenS = self.chulenms / 1000
         apList = list()
         videoChunks = list()
         tmpVideoChunks = list()
         length = len(vidList)
+        import concurrent
+        import threading
+        print("extracting audio")
+        executor = concurrent.futures.ProcessPoolExecutor(61)
+        futures = [executor.submit(self.extractAudio, i, vidList)
+                   for i in range(length)]
+        # run code in the meantime
+        concurrent.futures.wait(futures)
+        # run code once preprocessed audio is ready
+
+        # create chunk lists
+        self.chunkList = list()
+        print("chunking audio")
+        executor = concurrent.futures.ProcessPoolExecutor(61)
+        futures = [executor.submit(self.chunkAudio, vidList[i])
+                   for i in range(length)]
+        # run code in the meantime
+        concurrent.futures.wait(futures)
+        # run code once chunks are ready
+        print(f"vidList [s={len(vidList)}] = {vidList}")
+        exit()
+
+        #
+
+        #
         for i in range(length): #now make a list of kChunks so that the program can sticth video and audio in the next iteration
-            v = vidList[i]
-            nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
-            if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
-                if DEFAULT_TREATMENT == 'game':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=20) #.filter('extrastereo', m=1.3)
-                        .filter('equalizer', f=20, t='q', w=0.5, g=0.4)
-                        .filter('equalizer', f=80, t='q', w=0.5, g=0.1)
-                        .filter('equalizer', f=20000, t='q', w=0.3, g=0.2) #.filter('dynaudionorm', f=630, g=201, m=0.5)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'music':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=20000).filter('highpass', f=20)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'voice':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=20)
-                        .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'focusedVoice':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=17000).filter('highpass', f=40)
-                        .filter('deesser') #.filter('dynaudionorm', f=230, g=71, m=3) #, t=
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
-                if DEFAULT_TREATMENT == 'noisy':
-                    (
-                    ffmpeg.input(v.aPath())
-                        .filter('lowpass', f=18000).filter('highpass', f=80)
-                        .filter('afftdn', nr=4, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=1)
-                        .filter('afftdn', nr=2, nt="w", om="o") #.filter('dynaudionorm', f=330, g=101, m=0.5)
-                        .filter('afftdn', nr=1, nt="w", om="o")
-                        .output(nameAP).run(overwrite_output=True)
-                    )
             pvBool, pvList, pvc = v.getProcessedVideo()
             if pvList == None:
                 print("None encountered")
@@ -286,7 +386,7 @@ class kss:
                 print("\n")
                 pvc.audio = mpye.AudioFileClip(nameAP)
                 audioProcess = AudioSegment.from_mp3(nameAP)
-                chunksProcess = make_chunks(audioProcess, chuLenMS)
+                chunksProcess = make_chunks(audioProcess, self.chulenms)
                 iterations = math.floor(pvc.duration / chuLenS)
                 totalChunks = 0
                 for scn in range(iterations): #subclip in pv:
@@ -317,7 +417,7 @@ class kss:
             else: #single clip
                 pvc.audio = mpye.AudioFileClip(nameAP)
                 audioProcess = AudioSegment.from_mp3(nameAP)
-                chunksProcess = make_chunks(audioProcess, chuLenMS)
+                chunksProcess = make_chunks(audioProcess, self.chulenms)
                 dur = pvc.duration
                 iterations = math.floor(dur / chuLenS)
                 for i in range(iterations):
@@ -470,62 +570,62 @@ def bordered(text):
     res.append('└' + '─' * width + '┘')
     return '\n'.join(res)
 
-#init
-FFMPEG_BIN = 'ffmpeg'
-dir = ''
-dir = dirname(abspath(__file__)) + "\\footage"
-chunks = []
-gen = []
+if __name__ == "__main__":
+    #init
+    FFMPEG_BIN = 'ffmpeg'
+    dir = ''
+    dir = dirname(abspath(__file__)) + "\\footage"
+    chunks = []
+    gen = []
 
-file = open('options.json', 'r')
-data = json.load(file)
+    file = open('options.json', 'r')
+    data = json.load(file)
 
-#program_info
-program_name = data['program_info']['program_name']
-program_version = data['program_info']['version']
+    #program_info
+    program_name = data['program_info']['program_name']
+    program_version = data['program_info']['version']
 
-#file_naming_options
-include_program_tag = data['file_naming_options']['include_program_tag']
-include_render_date = data['file_naming_options']["include_render_date"]
-include_preset_name_in_output = data['file_naming_options']['include_preset_name_in_output']
+    #file_naming_options
+    include_program_tag = data['file_naming_options']['include_program_tag']
+    include_render_date = data['file_naming_options']["include_render_date"]
+    include_preset_name_in_output = data['file_naming_options']['include_preset_name_in_output']
 
-#processing_options
-default_input_folder = data['file_management_options']['default_input_folder']
-cleanup = data['file_management_options']["clean_workspace_afterwards"]
-extList = data['file_management_options']['find_videos_with_formats']
+    #processing_options
+    default_input_folder = data['file_management_options']['default_input_folder']
+    cleanup = data['file_management_options']["clean_workspace_afterwards"]
+    extList = data['file_management_options']['find_videos_with_formats']
 
 
-#processing_options
-preset_name = data['processing_options']['selected_mode']
-sp = data['processing_options']["modes"][preset_name]
-DEFAULT_THRESHOLD = sp[0]
-DEFAULT_PERIOD = sp[1]
-DEFAULT_REACH_ITER = sp[2]
-DEFAULT_REACH_THRESH = sp[3] * DEFAULT_THRESHOLD
-DEFAULT_WIDTH = sp[4]  # 2560
-DEFAULT_HEIGHT = sp[5]  # 1440
-DEFAULT_MAX_CHUNK_SIZE = sp[6] * 60 #1.2, 3.2, 10.2
-DEFAULT_TREATMENT = sp[7]
-#list(['voice', 'music'])[0]
-dir = ''
+    #processing_options
+    preset_name = data['processing_options']['selected_mode']
+    sp = data['processing_options']["modes"][preset_name]
+    DEFAULT_THRESHOLD = sp[0]
+    DEFAULT_PERIOD = sp[1]
+    DEFAULT_REACH_ITER = sp[2]
+    DEFAULT_REACH_THRESH = sp[3] * DEFAULT_THRESHOLD
+    DEFAULT_WIDTH = sp[4]  # 2560
+    DEFAULT_HEIGHT = sp[5]  # 1440
+    DEFAULT_MAX_CHUNK_SIZE = sp[6] * 60 #1.2, 3.2, 10.2
+    DEFAULT_TREATMENT = sp[7]
+    #list(['voice', 'music'])[0]
+    dir = ''
 
-#console_settings
-verbose = data['console_settings']["verbose"]
-print_color = "cyan" #['console_settings']['default_print_color']
-print_color_error = "yellow" #['console_settings']['default_error_color']
+    #console_settings
+    verbose = data['console_settings']["verbose"]
+    print_color = "cyan" #['console_settings']['default_print_color']
+    print_color_error = "yellow" #['console_settings']['default_error_color']
 
-#print('\n=========\n\nsSafe Exit\n\n=========\n')
-#exit()
-sessID = randomString(4)
-workD = kPath(dirname(abspath(__file__)) + "\\footage")
-inD = data['file_management_options']['default_input_folder']
-if '[workD]' in inD:
-    inD = inD.replace('[workD]\\', '').replace('[workD]', '')
-    inD = workD.append(inD)
-else:
-    inD = kPath(inD)
-outD = workD.append('output')
+    #print('\n=========\n\nsSafe Exit\n\n=========\n')
+    #exit()
+    sessID = randomString(4)
+    workD = kPath(dirname(abspath(__file__)) + "\\footage")
+    inD = data['file_management_options']['default_input_folder']
+    if '[workD]' in inD:
+        inD = inD.replace('[workD]\\', '').replace('[workD]', '')
+        inD = workD.append(inD)
+    else:
+        inD = kPath(inD)
+    outD = workD.append('output')
 
-print(bordered(f'{program_name} version {program_version}'))
-
-kss(sessID, inD, workD, outD)
+    print(bordered(f'{program_name} version {program_version}'))
+    kss(sessID, inD, workD, outD)
