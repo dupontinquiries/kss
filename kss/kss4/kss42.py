@@ -294,12 +294,13 @@ class kss:
             tf = max(tf, pvc.duration)
             subclips.append(pvc.subclip(ts, tf))
 
-        self.tmpChunks = list()
-        self.tmpCounter = 0
+        #self.tmpChunks = list() # cannot perform
+        #self.tmpCounter = 0
         print(f"preparing jobs for list of size {len(subclips)}")
         job = []
+        tmpChunks = list()
         for i in range(len(subclips)):
-            process = multiprocessing.Process(target=self.appendChunks, args=(subclips[i], i))
+            process = multiprocessing.Process(target=self.appendChunks, args=(subclips[i], i, tmpChunks))
             jobs.append(process)
             print(f"[{i}] new job")
 
@@ -327,15 +328,15 @@ class kss:
         exit()
 
 
-    def appendChunks(self, subclip):
-        self.tmpCounter += 1
+    def appendChunks(self, subclip, givenCounter, retList):
+        #self.tmpCounter += 1
         chunks = list()
         n = subclip.duration // chuLenS
         for i in range(n):
             ts = n * chuLenS
             tf = (n + 1) * chuLenS
             tf = max (tf, pvc.duration)
-            self.tmpChunks.append((self.tmpCounter, i, kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP)))
+            retList.append((givenCounter, i, kChunk(subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP)))
 
 
     def __init__(self, sessID, inD, workD, outD):
@@ -362,6 +363,7 @@ class kss:
 
         # create chunk lists
         self.chunkList = list()
+        self.tmpCounter = 0
         print("chunking audio")
         executor = concurrent.futures.ProcessPoolExecutor(61)
         futures = [executor.submit(self.chunkAudio, vidList[i])
