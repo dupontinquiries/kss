@@ -18,7 +18,7 @@ import re
 def create_video_list(a):
     tmp = list()
     for name in os.listdir(a):
-        print(f"name = {name}")
+        #print(f"name = {name}")
         if name.endswith(".mp4"):
             tmp.append(name)
     return tmp
@@ -42,7 +42,7 @@ def process(i):
     a = AudioSegment.from_wav("tmp_a_from_" + i + ".wav")
     if os.path.exists("tmp_a_from_" + i + ".wav"):
         os.remove("tmp_a_from_" + i + ".wav")
-    chunk_length_ms = 2000  # 4000 is best
+    chunk_length_ms = 400  # 4000 is best
     chunk_length_s = chunk_length_ms/1000
     chunks_a = make_chunks(a, chunk_length_ms)
     tc_v = []
@@ -52,23 +52,37 @@ def process(i):
         db = chunks_a[z].dBFS
         list_of_db.append(db)
 
+    #new code
+    list_of_sv = list()
+
+    dt = 5
+    for n in range(len(list_of_db)):
+        list_of_sv.append( sum( (list_of_db[max(0, n - dt):min(n + dt, len(list_of_db))]) ) / max( (min(n + dt, len(list_of_db)) - max(0, n - dt) ), 1 ) )
+
+    # run code in the meantime
+    #concurrent.futures.wait(futures)
+
+    #print(f"{list_of_db}\n\n{list_of_sv}")
+    #exit()
+    #tmpCheck = input(f"avg diff = {abs( sum( ( list(map(lambda x, y: x - y, list_of_db, list_of_sv )) ) ) ) / len( (list_of_db) )}")
     max_db = max(list_of_db)
-    thresh = 1.5 * max_db
-    print("max_db: " + str(max_db))
-    print("thresh: " + str(thresh))
+    #top_10 = sorted(list_of_db)[max(0, .1*)]
+    thresh = 1.8 * max_db
+    #print("max_db: " + str(max_db))
+    #print("thresh: " + str(thresh))
 
     for x in range(0, len(chunks_a) - 1):
         raw = list_of_db[x]
-        if raw > thresh: # -27 works best, -36
-            print("subclips: " + str(tc_v))
+        if raw > thresh or list_of_sv[x] > 1.5 * thresh: # -27 works best, -36
+            #print("subclips: " + str(tc_v))
             tc_v.append(movie.subclip((x * chunk_length_s), (x * chunk_length_s + chunk_length_s)))
-            print("vol = " + str(raw))
+            #print("vol = " + str(raw))
             # base = ffmpeg.concat(base_v, base_a, chunks_a[x], tc_v, v=1, a=1)
-            # print(str(tc_v))
+            # #print(str(tc_v))
     # output = ffmpeg.output(base['v'], base['a'], "processed_output_from_" + i + ".mp4")
     # ffmpeg.run(output)
     processed = concatenate(tc_v)
-    print("concat: " + str(processed))
+    #print("concat: " + str(processed))
     processed.write_videofile("final\\processed_output_from_" + i + ".mp4")
     if not processed:
         processed = ffmpeg.output([], [], "final\\processed_output_from_" + i + ".mp4")
@@ -79,14 +93,14 @@ def process(i):
     return ret
 
 
-print(str(ffmpeg) + " is running")
+#print(str(ffmpeg) + " is running")
 
 dir = "C:\\Users\\kessl\\Desktop\\Code 2020\\kss\\kss\\og_kss\\footage"
-print("root: " + str(dir))
+#print("root: " + str(dir))
 os.chdir(dir)
 vid_arr = create_video_list(dir)
 vid_arr.sort(key=lambda x: os.path.getmtime(x))
-print("list: " + str(vid_arr) + "")
+#print("list: " + str(vid_arr) + "")
 #base = ffmpeg.input(vid_arr[0])
 base = process(vid_arr[0])
 base_v = base['v']
@@ -96,7 +110,7 @@ for w in range(1, len(vid_arr) - 1):
     to_concat = process(vid_arr[w])
     to_concat_v = to_concat['v']
     to_concat_a = to_concat['a']
-    print("n = " + str(w))
+    #print("n = " + str(w))
     base = ffmpeg.concat(base_v, base_a, to_concat_v, to_concat_a, v=1, a=1)
     base = base.node
     base_v = base['v']
@@ -107,5 +121,5 @@ base_a = base_a.filter("loudnorm").filter("acompressor")
 # https://ffmpeg.org/ffmpeg-filters.html#silencedetect
 out = ffmpeg.output(base_v, base_a, "final\\output_from_" + "all_clips" + ".mp4")
 ffmpeg.run(out)
-print("done")
+#print("done")
 # to fix len issue? https://stackoverflow.com/questions/19182188/how-to-find-the-length-of-a-filter-object-in-python
