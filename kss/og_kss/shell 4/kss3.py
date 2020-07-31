@@ -161,7 +161,7 @@ class kPath:
             clips.append(k)
 
         return k
-        
+
         if len(clips) is 1:
             return k
         elif len(clips) is 0 and clips is not None:
@@ -212,18 +212,21 @@ class kss:
         self.x = 100 #set max length of progress bar
         self.progress_x = 0
         self.title = 'chunking'
-        self.startProgress()
+        #self.startProgress()
         length = len(vidList)
         for i in range(length): #now make a list of kChunks so that the program can sticth video and audio in the next iteration
             v = vidList[i]
+            print(f"video #{i} = {v}")
             nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
             if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
-                ffmpeg.input(v.aPath()).filter("afftdn", nr=6, nt="w", om="o").output(nameAP).run(overwrite_output=True)
+                ffmpeg.input(v.aPath()).filter("afftdn", nr=0.5, nt="w", om="o").output(nameAP).run(overwrite_output=True)
             pv = v.getProcessedVideo()
             audioProcess = AudioSegment.from_mp3(nameAP)
             chunksProcess = make_chunks(audioProcess, chuLenMS)
             iterations = math.floor(pv.duration / chuLenS) + 1
             for i in range(len(chunksProcess)):
+                if i % 50 == 0:
+                    print(f"creating chunk #{i}")
                 ts = i * chuLenS
                 tf = (i + 1) * chuLenS
                 if (tf > pv.duration):
@@ -234,19 +237,28 @@ class kss:
             del pv
             self.x += 50 // length
         max = 0
+        #top_10 = sorted(apList, reverse=True)[:min(25, len(apList))]
+        #if len(top_10) > 0:
+        #    max = sum(top_10) / (len(top_10))
+        #else:
+        #    max = top_10
         for i in range(len(apList)): #normalize data
             if max < apList[i]:
                 max = apList[i]
         for i in range (len(apList)):
             apList[i] /= (0.9 * 300) + (0.1 * max) # max
         finalClip = [] #build final clip
+        print(f"building final clip")
         for i in range(len(apList)):
+            if i % 10 == 0:
+                print(f"filtering chunk #{i}")
             if apList[i] >= DEFAULT_THRESHOLD or self.computeSV(apList, i) >= DEFAULT_REACH_THRESH:
+                print(f"  kept")
                 finalClip.append(videoChunks[i])
             self.x += 50 // length
-            self.progress()
+            #self.progress()
         finalClip = list(map(lambda d: d.content, finalClip))
-        self.endProgress()
+        #self.endProgress()
         print('\r\n')
         outputMovie = mpye.concatenate_videoclips(finalClip)
         #labeling options

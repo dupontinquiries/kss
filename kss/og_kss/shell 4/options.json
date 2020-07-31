@@ -1,0 +1,32 @@
+{
+  "program_info": {
+    "program_name": "KSS",
+    "version": "3.0"
+  },
+  "file_naming_options": {
+    "include_program_tag": true,
+    "include_render_date": true,
+    "include_preset_name_in_output": true
+  },
+  "file_management_options": {
+    "default_input_folder": "[workD]\\input",
+    "clean_workspace_afterwards": false,
+    "find_videos_with_formats": [".mp4", ".mov", ".mkv"]
+  },
+  "processing_options": {
+    "selected_mode": "lecture",
+    "modes": {
+      "minecraft": [0.9, 750, 4, 1.2, 1920, 1080, 20, "music"],
+      "vodCast": [1.43, 390, 3, 0.99, 1280, 720, 10, "voice"],
+      "vodCastPro": [1.35, 350, 4, 0.9, 1920, 1080, 10, "voice"],
+      "normalizedDefault": [0.6, 180, 12, 0.9, 1920, 1080, 10, "voice"],
+      "normalizedSelective": [0.8, 180, 12, 0.9, 1920, 1080, 10, "voice"],
+      "lecture": [0.82, 420, 4, 0.9, 1920, 1080, 10, "voice"]
+    }
+  },
+  "console_settings": {
+    "verbose": false,
+    "default_print_color": "cyan",
+    "default_error_color": "yellow"
+  }
+}
