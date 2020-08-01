@@ -58,6 +58,9 @@ from datetime import date
 #import tensorflow as tf
 #import numpy as np
 
+import multiprocessing
+import threading
+
 # classes
 
 #kPath handles a lot of basic file path issues and makes coding file directories a breeze
@@ -173,14 +176,15 @@ class kPath:
     def getProcessedVideo(self):
         clips = list()
         k = mpye.VideoFileClip(self.p)
+        return k
+
+
         if k.duration > DEFAULT_MAX_CHUNK_SIZE:
             clips = self.chunk()
         else:
             return (False, None, k)
-        print(f"getPV returned: {clips}")
         #if len(clips) > 1: #as array
         if type(clips) is list:
-            print("this return")
             return (True, clips, k)
         else:
             return (False, None, k)
@@ -193,8 +197,6 @@ class kPath:
 
 #kChunk handles storing audio data
 class kChunk:
-
-    data = []
 
     def __init__(self, content, ts, tf, volume, sourceName):
         self.content = content
@@ -228,6 +230,8 @@ class kss:
         v = vidList[i]
         nameAP = workD.append('chunks').append(v.path().split('.')[0] + '.mp3').aPath()
         if not workD.append('chunks').append(v.path().split('.')[0] + '.mp3').exists():
+            if DEFAULT_TREATMENT == 'none':
+                ffmpeg.input(v.aPath()).output(nameAP).run(overwrite_output=True)
             if DEFAULT_TREATMENT == 'game':
                 (
                 ffmpeg.input(v.aPath())
@@ -286,18 +290,18 @@ class kss:
         packets = make_chunks(a, self.chulenms)
         print(f"dividing clip")
         # make 5 minute segments to process simultaneously
-        n = pvc.duration // 300
+        n = int(pvc.duration // self.chuLenS)
         subclips = list()
-        for i in range(len(packets)):
-            ts = i * 300
-            tf = (i + 1) * 300
+        for i in range(n):
+            ts = i * self.chuLenS
+            tf = (i + 1) * self.chuLenS
             tf = max(tf, pvc.duration)
             subclips.append(pvc.subclip(ts, tf))
 
         #self.tmpChunks = list() # cannot perform
         #self.tmpCounter = 0
         print(f"preparing jobs for list of size {len(subclips)}")
-        job = []
+        jobs = []
         tmpChunks = list()
         for i in range(len(subclips)):
             process = multiprocessing.Process(target=self.appendChunks, args=(subclips[i], i, tmpChunks))
@@ -346,7 +350,7 @@ class kss:
         vidList = self.vidList(inD)
         spreadCalc = DEFAULT_REACH_ITER
         self.chulenms = DEFAULT_PERIOD
-        chuLenS = self.chulenms / 1000
+        self.chuLenS = self.chulenms / 1000
         apList = list()
         videoChunks = list()
         tmpVideoChunks = list()
@@ -354,22 +358,27 @@ class kss:
         import concurrent
         import threading
         print("extracting audio")
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.extractAudio, i, vidList)
-                   for i in range(length)]
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.extractAudio, i, vidList)
+        #           for i in range(length)]
         # run code in the meantime
-        concurrent.futures.wait(futures)
+        #concurrent.futures.wait(futures)
         # run code once preprocessed audio is ready
+        #for i in range(length):
+        #    self.extractAudio(i, vidList)
 
         # create chunk lists
         self.chunkList = list()
         self.tmpCounter = 0
         print("chunking audio")
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.chunkAudio, vidList[i])
-                   for i in range(length)]
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.chunkAudio, vidList[i])
+        #           for i in range(length)]
         # run code in the meantime
-        concurrent.futures.wait(futures)
+        #concurrent.futures.wait(futures)
+        for i in range(length):
+            self.extractAudio(i, vidList)
+            self.chunkAudio(vidList[i])
         # run code once chunks are ready
         print(f"vidList [s={len(vidList)}] = {vidList}")
         exit()
