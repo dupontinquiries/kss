@@ -290,7 +290,7 @@ class kss:
         pvc = v.getFullVideo()
         # create tandem mp3 audio
         af = self.workD.append("chunks").append(f"chunk_{randomString(7)}.mp3")
-        print(f"created temporary file {af.path()}")
+        #print(f"created temporary file {af.path()}")
         ffmpeg_extract_audio(v.aPath(), af.aPath()) #, ffmpeg_params=["-preset","fast"])
         a = AudioSegment.from_mp3(af.aPath())
         print(a)
@@ -350,6 +350,93 @@ class kss:
             retList.append( ( givenCounter, i, kChunk( subclip.subclip(ts, tf), ts, tf, chunksProcess[totalChunks].dBFS, nameAP ) ) )
 
 
+    def makeAudio(self, i, vidList, audioFileList, UUID):
+        print(f"({UUID}) makeAudio()")
+        #v = self.extractAudio(i, vidList)
+        #pvc = v.getFullVideo()
+        # create tandem mp3 audio
+        af = self.workD.append("chunks").append(f"chunk_{randomString(12)}.mp3")
+        print(f"created temporary file {af.path()}")
+        ffmpeg_extract_audio(vidList[i].aPath(), af.aPath())
+        audioFileList.append(af)
+        print(f"  end ({UUID}) makeAudio()")
+
+
+    def convertMP3toChunksHelper(self, i, packets):
+        packets[i] = ( *(packets[i]), i * self.chulenms, (i + 1) * self.chulenms )
+
+    def convertMP3toChunks(self, i, audioFileList, audioChunksList, UUID):
+        print(f"({UUID}) convertMP3toChunks()")
+        a = AudioSegment.from_mp3( audioFileList[i].aPath() )
+        packets = make_chunks(a, self.chulenms)
+        packets = list( map(lambda x: (i, x, x.dBFS), packets) )
+        """
+        executor = concurrent.futures.ProcessPoolExecutor(10)
+        futures = [executor.submit(self.convertMP3toChunksHelper, i, packets)
+           for i in range( len(packets) )]
+        concurrent.futures.wait(futures)
+        """
+        for i in range( len(packets) ):
+            self.convertMP3toChunksHelper(i, packets)
+        #for i in range( len(packets) ):
+        #    packets[i] = ( *(packets[i]), i * self.chulenms, (i + 1) * self.chulenms )
+        audioChunksList += packets
+        #audioFileList[i].delete()
+        print(f"  end ({UUID}) convertMP3toChunks()")
+
+
+    def helperFloorChunk(self, i, audioChunksList, bottom):
+        if audioChunksList[i][2] < bottom:
+            audioChunksList[i][2] = bottom
+
+
+    def floorChunks(self, i, audioChunksList):
+        ###print(f"(main) floorChunks()")
+        #executor = concurrent.futures.ProcessPoolExecutor(4)
+        #futures = [executor.submit(self.helperFloorChunk, i, audioChunksList, -500)
+        #for i in range(len(audioChunksList))]
+        #run code in the meantime
+        #concurrent.futures.wait(futures)
+        #for i in range(len(audioChunksList)):
+        self.helperFloorChunk( i, audioChunksList, -500 )
+
+    def helperCalculateSV(self, i, audioChunksList, audioDataList, bottom):
+        print(f"calculating spread value: {i + 1}/{len(audioChunksList)}\r", end="")
+        a = max(0, i - 5)
+        b = min(len(audioChunksList), i + 5)
+        tmp = list(map(lambda x: x[2], audioChunksList[a:b])) # audioChunksList[a:b]
+        if b - a < 1:
+            #print(f"{audioChunksList[i]}")
+            #print(f"{tmp}")
+            #print(f"{b - a}")
+            #print(f"{audioChunksList[i]}")
+            #exit()
+            audioDataList[i] = ( *(audioChunksList[i]), tmp )
+        else:
+            #print(f" audioChunk: {audioChunksList[i]} \n tmp: {tmp}")
+            #print(f"{audioChunksList[i]}")
+            #exit()
+            audioDataList[i] = ( *(audioChunksList[i]), sum(tmp) / max(1, b - a) )
+            #audioDataList[i] = ( audioChunksList[i][0], audioChunksList[i][1], audioChunksList[i][2], sum(tmp) / max(1, b - a) )
+
+
+    # unused
+    def calculateSV(self, audioChunksList):
+        #print(f"(main) floorChunks()")
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.helperCalculateSV, i, audioChunksList)
+        #for i in range(len(audioChunksList))]
+        #run code in the meantime
+        #concurrent.futures.wait(futures)
+        print(f"\rcalculating spread value: {0}/{len(len(audioChunksList))}")
+        for i in range( len(audioChunksList) ):
+            self.helperCalculateSV(i, audioChunksList)
+        print(f"\r\n")
+
+    def generateSubclips():
+        return True
+
+
     def __init__(self, sessID, inD, workD, outD):
         self.sessID = sessID
         self.inD = inD
@@ -363,92 +450,130 @@ class kss:
         tmpVideoChunks = list()
         length = len(vidList)
         import concurrent
+        import concurrent.futures
         import threading
-        print("extracting audio")
-        #executor = concurrent.futures.ProcessPoolExecutor(61)
-        #futures = [executor.submit(self.extractAudio, i, vidList)
-        #           for i in range(length)]
-        # run code in the meantime
-        #concurrent.futures.wait(futures)
-        # run code once preprocessed audio is ready
-        #for i in range(length):
-        #    self.extractAudio(i, vidList)
+        #print("extracting audio")
 
         # create chunk lists
-        self.chunkList = list()
-        self.tmpCounter = 0
-        print("chunking audio")
-        #executor = concurrent.futures.ProcessPoolExecutor(61)
-        #futures = [executor.submit(self.chunkAudio, vidList[i])
-        #           for i in range(length)]
-        # run code in the meantime
-        #concurrent.futures.wait(futures)
-        for i in range(length):
-            self.extractAudio(i, vidList)
-            self.chunkAudio(vidList[i])
+        #self.chunkList = list()
+        #self.tmpCounter = 0
+        #print("chunking audio")
+
+
+        #for i in range(length):
+        #    self.extractAudio(i, vidList)
+        #    self.chunkAudio(vidList[i])
         # run code once chunks are ready
         print(f"vidList [s={len(vidList)}] = {vidList}")
-        ######exit()
 
+        UUID = list()
 
+        for i in range( len(vidList) ):
+            UUID.append(randomString(7))
 
         # make audio
-        audioFileList = [None] * len(vidList)
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.makeAudio, i, vidList, audioFileList)
-        for i in range(length)]
-        #run code in the meantime
-        concurrent.futures.wait(futures)
+
+        audioFileList = list() #[None] * len(vidList)
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.makeAudio, i, vidList, audioFileList, UUID[i])
+        #for i in range( len(vidList) )]
+        ##run code in the meantime
+        #concurrent.futures.wait(futures)
+
+        for i in range( len(vidList) ):
+            self.makeAudio( i, vidList, audioFileList, UUID[i] )
+        #print(f"audio file list: {audioFileList}")
 
         # make chunks
-        totalLength = reduce(lambda x, y: x.duration + y.duration, vidList)
-        audioChunksList = [None] * ( 1 + ( totalLength / self.chulenms ) )
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.convertMP3toChunks, i, audioFileList, audioChunksList)
-        for i in range(audioChunksList)]
-        #run code in the meantime
-        concurrent.futures.wait(futures)
+        #totalLength = 0.0
+        #for video in vidList:
+        #    totalLength += 1000.0 * ( video.getFullVideo().duration )
+        #totalLength = int( 0.5 + ( 1 + ( totalLength / self.chulenms ) ) )
+        audioChunksList = list() #[None] * totalLength
+
+        #audioSegs = list()
+        #for audioFile in audioFileList:
+        #    tmp = AudioSegment.from_mp3( audioFile.aPath() )
+        #    audioSegs.append( tmp )
+
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.convertMP3toChunks, i, audioFileList, audioChunksList, UUID[i])
+        #for i in range( len(audioFileList) )]
+        ##run code in the meantime
+        #concurrent.futures.wait(futures)
+
+        for i in range( len(audioFileList) ):
+            self.convertMP3toChunks( i, audioFileList, audioChunksList, UUID[i] )
+        #print(f"audio chunk list: {audioChunksList}")
+        ######exit(1)
 
         # floor values
         executor = concurrent.futures.ProcessPoolExecutor(61)
         futures = [executor.submit(self.floorChunks, i, audioChunksList)
-        for i in range(audioChunksList)]
+        for i in range( len(audioChunksList) )]
         #run code in the meantime
         concurrent.futures.wait(futures)
 
         # calculate sv
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.calculateSV, i, audioChunksList)
-        for i in range(audioChunksList)]
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.calculateSV, audioChunksList)
+        #for i in range( len(audioChunksList) )]
         #run code in the meantime
-        concurrent.futures.wait(futures)
+        #concurrent.futures.wait(futures)
+        #print(f"length of audioChunks = {len(audioChunksList)}")
+
+        #executor = concurrent.futures.ProcessPoolExecutor(10)
+        #futures = [executor.submit(try_multiple_operations, group)
+        #   for group in grouper(5, items)]
+        #concurrent.futures.wait(futures)
+
+        print(f"calculating spread value: {0}/{len(audioChunksList)}\r", end="")
+        audioDataList = [None] * len(audioChunksList)
+        for i in range( len(audioChunksList) ):
+            self.helperCalculateSV(i, audioChunksList, audioDataList, -500)
+        print(f"\r\n")
 
         # filter chunks
-        filteredChunksList = filter(lambda x: x > DEFAULT_THRESHOLD, audioChunksList)
-
+        #filteredChunksList = list( map(lambda x: (True, x) if x[2] > DEFAULT_THRESHOLD or x[3] > DEFAULT_REACH_THRESH else (False, x), audioChunksList) )
+        #####d = dict()
+        #####d.values() = audioDataList
+        ######print(f"{audioDataList[0]}\n{audioDataList[10]}")
+        #####exit()
+        filteredChunksList = list( map(lambda x: (True, *x) if x[2] > -400 or x[5] > -400 else (False, *x), audioDataList) )
+        #print(f"length of filtered = {len(filteredChunksList)}")
         # combine video
-        videoChunksList = [None] * len(filteredChunksList)
-        executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.generateSubclips, i, filteredChunksList, videoChunksList)
-        for i in range(audioChunksList)]
+        print(f"{audioDataList[0]}\n{audioDataList[10]}")
+        videoChunksList = list() #[None] * len(filteredChunksList)
+        #executor = concurrent.futures.ProcessPoolExecutor(61)
+        #futures = [executor.submit(self.generateSubclips, i, filteredChunksList, videoChunksList, UUID[i])
+        #for i in range( len(audioChunksList) )]
         #run code in the meantime
-        concurrent.futures.wait(futures)
+        #concurrent.futures.wait(futures)
+        i = 0
+        while i < len(filteredChunksList):
+            #print(f"{filteredChunksList[i]}")
+            if filteredChunksList[i][0]:
+                j = i
+                while filteredChunksList[j][0] and filteredChunksList[i][1] == filteredChunksList[j][1] and j < len(filteredChunksList) - 1:
+                    #print(f"{filteredChunksList[j]}")
+                    j += 1
+                    #print(f"{i} {j} {len(filteredChunksList)}")
+                video = vidList[ filteredChunksList[i][1] ].getFullVideo()
+                a = max(0, filteredChunksList[i][3] / 1000)
+                b = min( video.duration, filteredChunksList[j][4] / 1000 )
+                videoChunksList.append( video.subclip( min(a, b), max(a, b) ) ) # fixes mpye bug with frame rounding up
+                i = j
+            i += 1
 
-        #finalClip = list(map(lambda d: d.content, finalClip))
-        outputMovie = mpye.concatenate_videoclips(videoChunksList)
-        #labeling options
-        tag = ''
-        if include_program_tag:
-            tag += f'[{program_name + program_version}] '
-            if include_render_date:
-                tag += f'(date={date.today()}) '
-                if include_preset_name_in_output:
-                    tag += f'(preset={preset_name}) '
         #final video
-        outputMovie.write_videofile(outD.append(tag + 'output.mp4').aPath(), \
-            codec='libx265', audio_codec='libmp3lame', \
-            audio_bitrate='96k', preset='fast', \
-            threads=24) #threads=16
+        print(f"creating final video... ({ len(videoChunksList) }) {videoChunksList[0:3]}")
+        outputMovie = None
+        if len(videoChunksList) > 1:
+            outputMovie = mpye.concatenate_videoclips(videoChunksList, method='compose')
+        else:
+            outputMovie = videoChunksList[0]
+        #outputMovie = mpye.concatenate_videoclips(videoChunksList)
+        outputMovie.write_videofile(outD.append(f'{randomString(3)} -- output.mp4').aPath(), codec='libx265', audio_codec='libmp3lame', audio_bitrate='96k', preset='fast', threads=16)
         if cleanup:
             fSet = list(os.listdir(k.aPath()))
             for file in fSet:
@@ -613,4 +738,8 @@ if __name__ == "__main__":
     outD = workD.append('output')
 
     print(bordered(f'{program_name} version {program_version}'))
+    import datetime
+    a = datetime.datetime.now()
     kss(sessID, inD, workD, outD)
+    b = datetime.datetime.now()
+    print(f"total time: {b-a}")

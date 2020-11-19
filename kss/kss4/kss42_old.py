@@ -427,28 +427,18 @@ class kss:
         filteredChunksList = filter(lambda x: x > DEFAULT_THRESHOLD, audioChunksList)
 
         # combine video
-        videoChunksList = [None] * len(filteredChunksList)
+        videosChunksList = [None] * len(filteredChunksList)
         executor = concurrent.futures.ProcessPoolExecutor(61)
-        futures = [executor.submit(self.generateSubclips, i, filteredChunksList, videoChunksList)
+        futures = [executor.submit(self.generateSubclips, i, filteredChunksList, videosChunksList)
         for i in range(audioChunksList)]
         #run code in the meantime
         concurrent.futures.wait(futures)
 
-        #finalClip = list(map(lambda d: d.content, finalClip))
-        outputMovie = mpye.concatenate_videoclips(videoChunksList)
-        #labeling options
-        tag = ''
-        if include_program_tag:
-            tag += f'[{program_name + program_version}] '
-            if include_render_date:
-                tag += f'(date={date.today()}) '
-                if include_preset_name_in_output:
-                    tag += f'(preset={preset_name}) '
         #final video
         outputMovie.write_videofile(outD.append(tag + 'output.mp4').aPath(), \
             codec='libx265', audio_codec='libmp3lame', \
             audio_bitrate='96k', preset='fast', \
-            threads=24) #threads=16
+            threads=16)
         if cleanup:
             fSet = list(os.listdir(k.aPath()))
             for file in fSet:
