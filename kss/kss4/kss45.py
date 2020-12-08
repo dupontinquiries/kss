@@ -596,10 +596,12 @@ class kss:
         getVolumes = list( map( lambda x: x[2], audioDataList ) )
         print(f"volumes:\n max = {max(getVolumes)}\n min = {min(getVolumes)}\n avg = {sum(getVolumes)/len(getVolumes)}")
 
-        getVolumes = list( map( lambda x: x[5], audioDataList ) )
-        print(f"spread volumes:\n max = {max(getVolumes)}\n min = {min(getVolumes)}\n avg = {sum(getVolumes)/len(getVolumes)}")
+        getSpreadVolumes = list( map( lambda x: x[5], audioDataList ) )
+        print(f"spread volumes:\n max = {max(getSpreadVolumes)}\n min = {min(getSpreadVolumes)}\n avg = {sum(getSpreadVolumes)/len(getSpreadVolumes)}")
         #exit() -500 -400
-        filteredChunksList = list( map(lambda x: (True, *x) if x[2] > -26 or x[5] > -26 else (False, *x), audioDataList) )
+        vt = DEFAULT_THRESHOLD * ( max(getVolumes) + ( sum(getVolumes) / len(getVolumes) ) ) / 2
+        vrt = DEFAULT_REACH_THRESH * ( max(getSpreadVolumes) + ( sum(getSpreadVolumes) / len(getSpreadVolumes) ) ) / 2
+        filteredChunksList = list( map(lambda x: (True, *x) if x[2] > vt or x[5] > vrt else (False, *x), audioDataList) )
         t2 = datetime.datetime.now()
         print(f"filtering chunks delta: {t2-t1}")
 
@@ -700,8 +702,8 @@ class kss:
 
         #t1 = datetime.datetime.now()
 
-        outputMovie = None
-        outputMovies = None
+        #outputMovie = None
+        #outputMovies = None
         #if len(videoChunksList) > 1:
             #executor = concurrent.futures.ProcessPoolExecutor(20)
             #futures = [executor.submit( outputMovies.append( mpye.concatenate_videoclips(videoChunksList[i:min(len(videoChunksList), i+30)] ), method='compose') )
@@ -732,7 +734,7 @@ class kss:
 
         #t2 = datetime.datetime.now()
         #print(f"video combine delta: {t2-t1}")
-        #outputMovie = mpye.concatenate_videoclips(videoChunksList)
+        outputMovie = mpye.concatenate_videoclips(videoChunksList)
 
 
         #oldcoderemove = """
@@ -740,11 +742,14 @@ class kss:
         if write_to_disk:
             t1 = datetime.datetime.now()
             tagName = randomString(6)
-            executor = concurrent.futures.ProcessPoolExecutor(20)
-            futures = [executor.submit( outputMovies[i].resize(width=1080).write_videofile(outD.append(f'[{i}]{tagName} -- output.mp4').aPath(), preset='ultrafast') )
-               for i in range( 0, len(videoChunksList) / 30 )]
-            concurrent.futures.wait(futures)
-            #outputMovie.resize(width=1080).write_videofile(outD.append(f'{randomString(3)} -- output.mp4').aPath(), preset='ultrafast', threads=16) #, logger=None) #codec='libx265', audio_codec='libmp3lame', audio_bitrate='48k', preset='ultrafast') #, threads=16)
+            #executor = concurrent.futures.ProcessPoolExecutor(20)
+            #futures = [executor.submit( videoChunksList[i].resize(width=1080).write_videofile(outD.append(f'[{i}]{tagName} -- output.mp4').aPath(), preset='ultrafast') )
+            #   for i in range( 0, len(videoChunksList) // 30 )]
+            #concurrent.futures.wait(futures)
+            try:
+                outputMovie.resize(width=1080).write_videofile(outD.append(f'{randomString(4)} -- output.mp4').aPath(), preset='ultrafast', threads=16) #, logger=None) #codec='libx265', audio_codec='libmp3lame', audio_bitrate='48k', preset='ultrafast') #, threads=16)
+            except:
+                print(f"failed to write final video... might need to set a lower threshold")
             t2 = datetime.datetime.now()
             print(f"video write delta: {t2-t1}")
 
