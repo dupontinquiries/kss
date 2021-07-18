@@ -494,163 +494,7 @@ class kss:
     def generateSubclips():
         return True
 
-
-    def writeVideoGrouper(self, i, g, tmpChunks, returnChunksList, tmpName, folderName, referenceVideos, vidList):
-        clamp = min( i + g, len(tmpChunks) - 1 )
-        if i < clamp:
-            print(f"({tmpName[:9]}) writeVideoGrouper {i} - {clamp}")
-            if len(tmpChunks[i:clamp]) > 0:
-                _v = list()
-                k = i
-                tmpMpyVideos = dict()
-                while k < clamp:
-                    if tmpChunks[k][0]:
-                        j = k
-                        while tmpChunks[k][0] and tmpChunks[k][1] == tmpChunks[j][1] and k < len(tmpChunks) - 1:
-                            k += 1
-                        video = None
-                        #try:
-                        if tmpChunks[k][1] not in tmpMpyVideos:
-                            video = vidList[tmpChunks[k][1]].getFullVideo()
-                            tmpMpyVideos[tmpChunks[k][1]] = video
-                        else:
-                            video = tmpMpyVideos[tmpChunks[k][1]]
-                        #video = referenceVideos[ tmpChunks[k][1] ]
-                        #except:
-                        #    video = vidList[tmpChunks[k][1]].getFullVideo()
-                        a = max(0, tmpChunks[j][4] / 1000)
-                        b = min( video.duration, tmpChunks[k][5] / 1000 )
-                        fps = video.fps
-                        _v.append( video.subclip( min(a, b), max(a, b) ).set_fps(fps) )
-                    k += 1
-                if len(_v) == 0:
-                    return
-                outputMovie = None
-                if len(_v) == 1:
-                    outputMovie = _v
-                elif len(_v) > 1:
-                    outputMovie = mpye.concatenate_videoclips(_v, method='compose')
-                clip = outD.append(f'{folderName}_threading').append(f'{i//g} - {tmpName}_tmpChunk.mp4')
-                outputMovie.write_videofile(clip.aPath(), preset='slow', threads=16) #, codec='libx265', audio_codec='aac', audio_bitrate='48k', threads=16) #12
-                returnChunksList.append((i, clip))
-
-
-    def writeVideo_multithreading(self, tmpChunks, referenceVideos, vidList):
-        print(f"begin (main) writeVideo()")
-        import threading
-        threads = list()
-        returnChunksList = list()
-        nConcurrentThreads=1+(len(tmpChunks)//self.chulenms//40)
-        sparsity = len(tmpChunks)//nConcurrentThreads
-        folderName = randomString(9)
-
-        count = 0
-        for i in range( 0, len(tmpChunks), sparsity ):
-
-            if len(threads) > 10:
-                threads[0].join()
-                threads.pop(0)
-
-            t = threading.Thread(target=self.writeVideoGrouper, args=(i, sparsity, tmpChunks, returnChunksList, randomString(9), folderName, referenceVideos, vidList, ))
-            threads.append(t)
-            t.start()
-            count += 1
-
-        for thread in threads:
-            thread.join()
-
-        videoList = list()
-        for i, path in sorted(returnChunksList):
-            videoList.append(path.getFullVideo())
-
-
-        outputMovie = mpye.concatenate_videoclips(videoList)
-        outputMovie.write_videofile(outD.append(f'{randomString(5)} -- output.mp4').aPath(), preset='slow', codec='libx265', audio_codec='aac', audio_bitrate='48k') #, threads=16)
-
-        for i, path in sorted(returnChunksList):
-            if False:
-                path.delete()
-
-        cleanup = False
-        if cleanup:
-            executor = concurrent.futures.ProcessPoolExecutor(6)
-            futures = [executor.submit(tmpChunks[i].delete())
-               for i in range( len(tmpChunks) )]
-            concurrent.futures.wait(futures)
-        print(f"  end (main) writeVideo()")
-
-
-    def writeVideoGrouper_multiprocessing(self, queue, i, g, tmpChunks, tmpName, folderName, vidList):
-        clamp = min( i + g, len(tmpChunks) - 1 )
-        if i < clamp:
-            print(f"({tmpName[:9]}) writeVideoGrouper {i} - {clamp}")
-            if len(tmpChunks[i:clamp]) > 0:
-                _v = list()
-                k = i
-                tmpMpyVideos = dict()
-                while k < clamp:
-                    if tmpChunks[k][0]:
-                        j = k
-                        while tmpChunks[k][0] and tmpChunks[k][1] == tmpChunks[j][1] and k < len(tmpChunks) - 1:
-                            k += 1
-                        video = None
-                        #try:
-                        if tmpChunks[k][1] not in tmpMpyVideos:
-                            video = vidList[tmpChunks[k][1]].getFullVideo()
-                            tmpMpyVideos[tmpChunks[k][1]] = video
-                        else:
-                            video = tmpMpyVideos[tmpChunks[k][1]]
-                        a = max(0, tmpChunks[j][4] / 1000)
-                        b = min( video.duration, tmpChunks[k][5] / 1000 )
-                        fps = video.fps
-                        _v.append( video.subclip( min(a, b), max(a, b) ).set_fps(fps) )
-                    k += 1
-                if len(_v) == 0:
-                    return
-                outputMovie = None
-                if len(_v) == 1:
-                    outputMovie = _v
-                elif len(_v) > 1:
-                    outputMovie = mpye.concatenate_videoclips(_v, method='compose')
-                clip = outD.append(f'{folderName}_threading').append(f'{i//g} - {tmpName}_tmpChunk.mp4')
-                outputMovie.write_videofile(clip.aPath(), preset='slow', threads=16)
-                queue.put( (i, clip) )
-
-
-    def writeVideo_multiprocessing(self, tmpChunks, vidList):
-        print(f"begin (main) writeVideo()")
-        from multiprocessing import Process, Queue
-        queue = Queue()
-        nConcurrentThreads=1+(len(tmpChunks)//self.chulenms//25)
-        sparsity = len(tmpChunks)//nConcurrentThreads
-        folderName = randomString(9)
-
-        processes = [ Process(  target=self.writeVideoGrouper_multiprocessing, args=(queue, i, sparsity, tmpChunks, randomString(9), folderName, vidList, )  ) for i in range( 0, len(tmpChunks), sparsity ) ]
-
-        count = 0
-        for p in processes:
-            p.start()
-            ++count
-
-        for p in processes:
-            p.join()
-
-        results = [queue.get() for p in processes]
-
-        videoList = list()
-        for i, path in sorted(results):
-            videoList.append(path.getFullVideo())
-
-        outputMovie = mpye.concatenate_videoclips(videoList)
-        outputMovie.write_videofile(outD.append(f'{randomString(5)} -- output.mp4').aPath(), preset='slow', codec='libx265', audio_codec='aac', audio_bitrate='48k') #, threads=16)
-
-        cleanup = False
-        if cleanup:
-            executor = concurrent.futures.ProcessPoolExecutor(6)
-            futures = [executor.submit(tmpChunks[i].delete())
-               for i in range( len(tmpChunks) )]
-            concurrent.futures.wait(futures)
-        print(f"  end (main) writeVideo()")
+    ####### now in kssold as deleted funcs
 
 
     def writeVideoGrouper_v2(self, returnList, i, g, tmpChunks, tmpName, folderName, vidList, filters):
@@ -704,6 +548,7 @@ class kss:
                         count += 1
                     k += 1
 
+    #######
 
     # this function is calculated
     # keep
@@ -806,17 +651,28 @@ class kss:
                 step = 100#500
                 for i in range(0, len(b), step):
                     end = min(len(b), i + step)
-                    tmpName = outD.append(f"{folderName}_threading").append(randomString(24) + '.mp4').aPath()
+                    tmpName = outD.append(f"{folderName}_threading").append(randomString(24) + '.mkv').aPath()
                     stamps = list()
+                    count = 0
+                    tab = ''
                     for first, second in b[i:end]:
-                        stamps.append(f'+between(t,{first},{second})')
+                        stamps.append(f'[0:v]trim={first}:{second},setpts=PTS-STARTPTS[v{count}];[0:a]atrim={first}:{second},asetpts=PTS-STARTPTS[a{count}]')
+                        tab += f'[v{count}][a{count}]'
+                        count += 1
+                        #stamps.append(f'+between(t,{first},{second})')
                         #stamps.append(f'+between(t,{round(first,4)},{round(second,4)})')
-                    stamps = ''.join(stamps)[1:]
+                    ###stamps = ''.join(stamps)[1:]
                     #stamps = ''.join(b[i:end])[1:]
                     #stamps = ' '.join(b[i:end])
-                    command = f"ffmpeg -i \"{a}\" -vf \"select=\'{ stamps }\', setpts=N/FRAME_RATE/TB\" -af \"aselect=\'{ stamps }\', asetpts=N/SR/TB\" {codec}  -async 1 -crf 7 \"{tmpName}\"" #-c:v hevc_nvenc
+                    stamps.append(f'{tab}concat=n={count}:v=1:a=1[out]')
+                    command = f'ffmpeg -i \'{a}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'{tmpName}\''
+                    #command = f'ffmpeg -i \'/input/{kPath(a).path()}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'/output/{tmpName}\''
+                    ###print(command)
+                    ###exit()
+                    #command = f"ffmpeg -i \"{a}\" -vf \"select=\'{ stamps }\', setpts=N/FRAME_RATE/TB\" -af \"aselect=\'{ stamps }\', asetpts=N/SR/TB\" {codec}  -async 1 -crf 7 \"{tmpName}\"" #-c:v hevc_nvenc
                     #command = f"ffmpeg -i \"{a}\" -c copy {stamps} \"{tmpName}.mp4\""
-                    p = subprocess.Popen(command)
+                    #p = subprocess.Popen(command, cwd=self.workD.aPath())
+                    p = subprocess.Popen(command, shell=True)
                     p.communicate()
                     fileNames.append( f"file \'{tmpName}\'\n" )
                     #returnList.append( (a, tmpName) )
@@ -829,8 +685,8 @@ class kss:
         #    f.write( line )
         f.close()
 
-        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{folderName} -- output.mp4' + "\"" #randomString(5)
-        p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath())
+        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{folderName} -- output.mkv' + "\"" #randomString(5)
+        p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath(), shell=True)
         p.communicate()
 
         if True:
@@ -1043,7 +899,7 @@ class kss:
             #   for i in range( 0, len(videoChunksList) // 30 )]
             #concurrent.futures.wait(futures)
             #try:
-            outputMovie.write_videofile(outD.append(f'{randomString(5)} -- output.mp4').aPath(), preset='medium', audio_codec='aac', threads=16) #, logger=None) #codec='libx265', audio_codec='libmp3lame', audio_bitrate='48k', preset='fast') #, threads=16)
+            outputMovie.write_videofile(outD.append(f'{randomString(5)} -- output.mkv').aPath(), preset='fast') #, logger=None) #codec='libx265', audio_codec='libmp3lame', audio_bitrate='48k', preset='fast') #, threads=16)
             #except:
             #    print(f"failed to write final video... might need to set a lower threshold")
             t2 = datetime.datetime.now()
@@ -1170,7 +1026,7 @@ if __name__ == "__main__":
     chunks = []
     gen = []
 
-    file = open('options_kss5.json', 'r')
+    file = open('options_kss6.json', 'r')
     data = json.load(file)
 
     #program_info

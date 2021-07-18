@@ -1,7 +1,8 @@
 {
   "program_info": {
     "program_name": "KSS",
-    "version": "5.0"
+    "version": "6.0",
+    "compatible-os": "Mac OS M1 (ARM)"
   },
   "file_naming_options": {
     "include_program_tag": true,
