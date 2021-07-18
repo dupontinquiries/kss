@@ -578,105 +578,26 @@ class kss:
 
         count = 0
         fileNames = list()
-        codec = '-c:v hevc_nvenc'
-        if COPY_CODEC:
-            codec = '-c copy'
-        if '-cpu' in sys.argv:
-            codec = '-c:v h264'
         for a, b in filters.items():
-            if COPY_CODEC:
-                b = list(map(lambda x: x[1], b))
-                step = 1
-                sections = list()
+            b = list(map(lambda x: x[1], sorted(b)))
+            step = 250
+            for i in range(0, len(b), step):
+                end = min(len(b), i + step)
+                tmpName = outD.append(f"{folderName}_threading").append(randomString(24) + '.mkv').aPath()
+                stamps = list()
                 count = 0
-                tmpV = mpye.VideoFileClip(a)
-                #_fps = mpye.VideoFileClip(a).fps
-                for i in range(0, len(b)):
-                    f = ffmpeg.input(a)
-                    #sections.append( f.trim(start_frame=round(b[i][0]*_fps), end_frame=round(b[i][1]*_fps)) ) #f.subclip(b[i][0], b[i][1]))
-                    sections.append( tmpV.subclip( b[i][0], b[i][1] ) )
+                tab = ''
+                for first, second in b[i:end]:
+                    stamps.append(f'[0:v]trim={first}:{second},setpts=PTS-STARTPTS[v{count}];[0:a]atrim={first}:{second},asetpts=PTS-STARTPTS[a{count}]')
+                    tab += f'[v{count}][a{count}]'
                     count += 1
-                tmpName = outD.append(f"{folderName}_threading").append("{:0>10d}".format(count) + '.mp4').aPath()
-                #( ffmpeg.concat(*sections).output(tmpName).run() )
-                sg = mpye.concatenate_videoclips(sections, method='compose')
-                sg.write_videofile(tmpName)
+
+                stamps.append(f'{tab}concat=n={count}:v=1:a=1[out]')
+                command = f'ffmpeg -i \'{a}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'{tmpName}\''
+
+                p = subprocess.Popen(command, shell=True)
+                p.communicate()
                 fileNames.append( f"file \'{tmpName}\'\n" )
-
-            elif '-speed' in sys.argv: #speed up silent parts instead of trimming
-                b = list(map(lambda x: x[1], sorted(b)))
-                step = 500
-                for i in range(0, len(b), step):
-                    end = min(len(b), i + step)
-                    tmpName = outD.append(f"{folderName}_threading").append(randomString(24) + '.mp4').aPath()
-                    stamps = list()
-                    for j in range(i, end, 2): #first, second in b[i:end]:
-                        stamps.append(f'+between(t,{j},{j + 1})')
-                    stamps = ''.join(stamps)[1:]
-                    command = f"ffmpeg -i \"{a}\" -vf \"select=\'{ stamps }\', setpts=N/FRAME_RATE/TB\" -af \"aselect=\'{ stamps }\', asetpts=N/SR/TB\" {codec} \"{tmpName}\"" #-c:v hevc_nvenc
-                    p = subprocess.Popen(command)
-                    p.communicate()
-                    fileNames.append( f"file \'{tmpName}\'\n" )
-            elif '-separate_streams' in sys.argv:
-                b = list(map(lambda x: x[1], sorted(b)))
-                step = 500
-                for i in range(0, len(b), step):
-                    end = min(len(b), i + step)
-                    rString = randomString(24)
-                    tmpName = outD.append(f"{folderName}_threading").aPath() + "/" + rString
-                    stamps = list()
-                    audioSubClips = list()
-                    audioSource = mpye.AudioFileClip(a)
-                    for first, second in b[i:end]:
-                        stamps.append(f'+between(t,{first},{second})')
-                        audioSubClips.append(audioSource.subclip(first,second))
-                    stamps = ''.join(stamps)[1:]
-
-                    # do audio
-                    audioStream = concatenate_audioclips(audioSubClips)
-                    audioStream.write_audiofile(tmpName + "_audio.mp3")
-                    ######compo = CompositeAudioClip([aclip1.volumex(1.2),aclip2.set_start(5),aclip3.set_start(9)])
-
-                    # do video
-                    command = f"ffmpeg -i \"{a}\" -vf \"select=\'{ stamps }\', setpts=N/FRAME_RATE/TB\" {codec} -an \"{tmpName}_video.mp4\""
-                    p = subprocess.Popen(command)
-                    p.communicate()
-
-                    # join streams
-                    command = f"ffmpeg -i \"{tmpName}_video.mp4\" -i \"{tmpName}_audio.mp3\" -c:v copy -c:a aac \"{tmpName}.mp4\""
-                    p = subprocess.Popen(command)
-                    p.communicate()
-                    fileNames.append( f"file \'{tmpName}.mp4\'\n" )
-            else:
-                b = list(map(lambda x: x[1], sorted(b)))
-                step = 100#500
-                for i in range(0, len(b), step):
-                    end = min(len(b), i + step)
-                    tmpName = outD.append(f"{folderName}_threading").append(randomString(24) + '.mkv').aPath()
-                    stamps = list()
-                    count = 0
-                    tab = ''
-                    for first, second in b[i:end]:
-                        stamps.append(f'[0:v]trim={first}:{second},setpts=PTS-STARTPTS[v{count}];[0:a]atrim={first}:{second},asetpts=PTS-STARTPTS[a{count}]')
-                        tab += f'[v{count}][a{count}]'
-                        count += 1
-                        #stamps.append(f'+between(t,{first},{second})')
-                        #stamps.append(f'+between(t,{round(first,4)},{round(second,4)})')
-                    ###stamps = ''.join(stamps)[1:]
-                    #stamps = ''.join(b[i:end])[1:]
-                    #stamps = ' '.join(b[i:end])
-                    stamps.append(f'{tab}concat=n={count}:v=1:a=1[out]')
-                    command = f'ffmpeg -i \'{a}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'{tmpName}\''
-                    #command = f'ffmpeg -i \'/input/{kPath(a).path()}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'/output/{tmpName}\''
-                    ###print(command)
-                    ###exit()
-                    #command = f"ffmpeg -i \"{a}\" -vf \"select=\'{ stamps }\', setpts=N/FRAME_RATE/TB\" -af \"aselect=\'{ stamps }\', asetpts=N/SR/TB\" {codec}  -async 1 -crf 7 \"{tmpName}\"" #-c:v hevc_nvenc
-                    #command = f"ffmpeg -i \"{a}\" -c copy {stamps} \"{tmpName}.mp4\""
-                    #p = subprocess.Popen(command, cwd=self.workD.aPath())
-                    p = subprocess.Popen(command, shell=True)
-                    p.communicate()
-                    fileNames.append( f"file \'{tmpName}\'\n" )
-                    #returnList.append( (a, tmpName) )
-                #if True or len(b) > step:
 
 
         f = open(outD.append(f"{folderName}_threading").append("list.txt").aPath(),"w+")
@@ -819,32 +740,6 @@ class kss:
             else:
                 nf += 1
         print(f"\n===\n# true = {nt}\n# false = {nf}\n===\n")
-
-        #print(f"filtered chunks = ")
-        #for v in filteredChunksList:
-        #    print("{}".format(v))
-        #exit()
-
-        ######## https://video.stackexchange.com/questions/10396/how-to-concatenate-clips-from-the-same-video-with-ffmpeg
-        idea = """
-
-        ffmpeg -i input -filter_complex \
-        "[0:v]trim=60:65,setpts=PTS-STARTPTS[v0]; \
-        [0:a]atrim=60:65,asetpts=PTS-STARTPTS[a0]; \
-        [0:v]trim=120:125,setpts=PTS-STARTPTS[v1];
-        [0:a]atrim=120:125,asetpts=PTS-STARTPTS[a1]; \
-        [v0][a0][v1][a1]concat=n=2:v=1:a=1[out]" \
-        -map "[out]" output.mkv
-
-        or
-
-        $ ffmpeg -ss 60 -i input -t 5 -codec copy clip1.mkv
-        $ ffmpeg -ss 120 -i input -t 5 -codec copy clip2.mkv
-        $ echo "file 'clip1.mkv'" > concat.txt
-        $ echo "file 'clip2.mkv'" >> concat.txt
-        $ ffmpeg -f concat -i concat.txt -codec copy output.mkv
-
-        """
 
         instructions = f"ffmpeg -i \"{filteredChunksList[i][1]}\" -filter_complex "
         instructions += f"-map \"{randomString(3)} -- output.mp4\" output.mkv"
