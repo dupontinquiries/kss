@@ -1,5 +1,5 @@
 """
-KSS 6.0
+KSS X
 Kitchen Silence Splitter
 """
 
@@ -606,7 +606,7 @@ class kss:
         #    f.write( line )
         f.close()
 
-        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{a[:-4]} -- {folderName} -- output.mkv' + "\"" #randomString(5)
+        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{kPath(a).path()[:-4]}-{folderName}-o.mkv' + "\"" #randomString(5)
         p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath(), shell=True)
         p.communicate()
 
@@ -917,11 +917,11 @@ if __name__ == "__main__":
     #init
     FFMPEG_BIN = 'ffmpeg'
     dir = ''
-    dir = dirname(abspath(__file__)) + "\\footage"
+    dir = dirname(abspath(__file__)) + "/footage"
     chunks = []
     gen = []
-
-    file = open('options_kss6.json', 'r')
+    #os.chdir(dirname(abspath(__file__)))
+    file = open('options_kssx.json', 'r')
     data = json.load(file)
 
     #program_info
@@ -951,9 +951,10 @@ if __name__ == "__main__":
     DEFAULT_TREATMENT = sp[7]
     #list(['voice', 'music'])[0]
     dir = ''
-    individual_videos = "-foreach" in sys.argv
-    COPY_CODEC = '-copy' in sys.argv
+    individual_videos = True #"-foreach" in sys.argv
+    COPY_CODEC = False #'-copy' in sys.argv
     SILENCE_NOTIFICATIONS = '-silent' in sys.argv
+    fileDirective = '-file' in sys.argv
 
     #console_settings
     verbose = data['console_settings']["verbose"]
@@ -975,16 +976,42 @@ if __name__ == "__main__":
         inD = kPath(inD)
     outD = workD.append('output')
 
-    print(bordered(f'{program_name} version {program_version}'))
+    print(bordered(f'{program_name} version X'))
     import datetime
     a = datetime.datetime.now()
-    if individual_videos:
+    fSet = []
+    if fileDirective:
+        with open(dirname(abspath(__file__)) + '/' + sys.argv[1]) as f:
+            fSet = f.read().split('\n')
+    else:
         fSet = list(os.listdir(inD.aPath()))
-        print(fSet)
-        vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
-        vids = list(map(lambda v: inD.append(v), vids))
-        print(f'bp ({len(vids)})')
-        for v in vids:
-            x = kss()
-            print('next step')
-            x.runCode(sessID, inD, workD, outD, [v])
+    vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
+    vids = list(map(lambda v: inD.append(v), vids))
+    #with open(dirname(abspath(__file__)) + '/thisworked.txt', 'w') as f2:
+    #    f2.write(f'done {randomString(4)}')
+    for v in vids:
+        x = kss()
+        x.runCode(sessID, inD, workD, outD, [v])
+    exit()
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        mail_content = data['notifications']["message"]
+        sender_address = data['notifications']["send_from"]
+        sender_pass = data['notifications']["password"]
+        receiver_address = data['notifications']["send_to"]
+        message = MIMEMultipart()
+        message['From'] = sender_address
+        message['To'] = receiver_address
+        message['Subject'] = 'KSS'
+        message.attach(MIMEText(mail_content, 'plain'))
+        session = smtplib.SMTP('smtp.gmail.com', 587)
+        session.starttls()
+        session.login(sender_address, sender_pass)
+        text = message.as_string()
+        session.sendmail(sender_address, receiver_address, text)
+        session.quit()
+        print('Mail Sent')
+    except:
+        print(" ! Failed to send email notification!  check your options file.")
