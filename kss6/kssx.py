@@ -54,6 +54,7 @@ import sys
 #time
 
 from datetime import date
+import datetime
 
 #import tensorflow as tf
 #import numpy as np
@@ -259,7 +260,7 @@ class kChunk:
 class kss:
 
     def __init__(self):
-        print('new instance')
+        print('kss')
 
     def extractAudio(self, i, vidList):
         v = vidList[i]
@@ -606,7 +607,9 @@ class kss:
         #    f.write( line )
         f.close()
 
-        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{kPath(a).path()[:-4]}-{folderName}-o.mkv' + "\"" #randomString(5)
+        name = f'{kPath(a).path()[:-4]} {("[" + randomString(2) + "]") if "-rs" in sys.argv else "" }[kssx].mkv'
+
+        command = "ffmpeg -y -f concat -safe 0 -i \"" + f'{self.outD.append(folderName + "_threading").append("list.txt")}' + "\" -c copy \"" + "../" + f'{name}' + "\"" #randomString(5)
         p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath(), shell=True)
         p.communicate()
 
@@ -620,9 +623,9 @@ class kss:
 
 
     def runCode(self, sessID, inD, workD, outD, vidList=None):
-        print('bp')
         self.sessID = sessID
         self.inD = inD
+        self.outD = outD
         self.workD = workD
         if vidList == None:
             vidList = self.vidList(inD)
@@ -921,7 +924,7 @@ if __name__ == "__main__":
     chunks = []
     gen = []
     #os.chdir(dirname(abspath(__file__)))
-    file = open('options_kssx.json', 'r')
+    file = open(dirname(abspath(__file__)) + '/options_kssx.json', 'r')
     data = json.load(file)
 
     #program_info
@@ -954,18 +957,27 @@ if __name__ == "__main__":
     individual_videos = True #"-foreach" in sys.argv
     COPY_CODEC = False #'-copy' in sys.argv
     SILENCE_NOTIFICATIONS = '-silent' in sys.argv
-    fileDirective = '-file' in sys.argv
+    filesIn = False
+    fileList = []
+    startFilesIndex = 0
+    stopFilesIndex = 0
+    filesInTag = '-filesin'
+    if filesInTag in sys.argv:
+        while sys.argv[startFilesIndex] != filesInTag:
+            startFilesIndex += 1
+        startFilesIndex += 1
+        stopFilesIndex = startFilesIndex
+        while sys.argv[stopFilesIndex][0] != '-' and (stopFilesIndex + 1 < len(sys.argv)):
+            stopFilesIndex += 1
+        filesIn = True
+    #fileDirective = '-file' in sys.argv
 
     #console_settings
     verbose = data['console_settings']["verbose"]
     print_color = "cyan" #['console_settings']['default_print_color']
     print_color_error = "yellow" #['console_settings']['default_error_color']
 
-    #print('\n=========\n\nsSafe Exit\n\n=========\n')
-    #exit()
     sessID = randomString(4)
-
-
 
     workD = kPath(dirname(abspath(__file__)) + "/footage")
     inD = data['file_management_options']['default_input_folder']
@@ -976,42 +988,51 @@ if __name__ == "__main__":
         inD = kPath(inD)
     outD = workD.append('output')
 
-    print(bordered(f'{program_name} version X'))
+    print(bordered(f'KSS X'))
     import datetime
     a = datetime.datetime.now()
     fSet = []
-    if fileDirective:
-        with open(dirname(abspath(__file__)) + '/' + sys.argv[1]) as f:
-            fSet = f.read().split('\n')
+    vids = []
+    #if fileDirective:
+    #    with open(dirname(abspath(__file__)) + '/' + sys.argv[1]) as f:
+    #        fSet = f.read().split('\n')
+    if filesIn:
+        for i in range(startFilesIndex, stopFilesIndex + 1):
+            fSet.append(sys.argv[i])
+        vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
+        vids = list(map(lambda v: kPath(v), vids))
     else:
         fSet = list(os.listdir(inD.aPath()))
-    vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
-    vids = list(map(lambda v: inD.append(v), vids))
+        vids = sorted(list(filter(lambda v: v[-4:].lower() in extList, fSet)))
+        vids = list(map(lambda v: inD.append(v), vids))
     #with open(dirname(abspath(__file__)) + '/thisworked.txt', 'w') as f2:
     #    f2.write(f'done {randomString(4)}')
+
     for v in vids:
         x = kss()
         x.runCode(sessID, inD, workD, outD, [v])
-    exit()
-    try:
-        import smtplib
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        mail_content = data['notifications']["message"]
-        sender_address = data['notifications']["send_from"]
-        sender_pass = data['notifications']["password"]
-        receiver_address = data['notifications']["send_to"]
-        message = MIMEMultipart()
-        message['From'] = sender_address
-        message['To'] = receiver_address
-        message['Subject'] = 'KSS'
-        message.attach(MIMEText(mail_content, 'plain'))
-        session = smtplib.SMTP('smtp.gmail.com', 587)
-        session.starttls()
-        session.login(sender_address, sender_pass)
-        text = message.as_string()
-        session.sendmail(sender_address, receiver_address, text)
-        session.quit()
-        print('Mail Sent')
-    except:
-        print(" ! Failed to send email notification!  check your options file.")
+    if not SILENCE_NOTIFICATIONS:
+        try:
+            import smtplib
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+            mail_content = data['notifications']["message"]
+            sender_address = data['notifications']["send_from"]
+            sender_pass = data['notifications']["password"]
+            receiver_address = data['notifications']["send_to"]
+            message = MIMEMultipart()
+            message['From'] = sender_address
+            message['To'] = receiver_address
+            message['Subject'] = 'KSS'
+            message.attach(MIMEText(mail_content, 'plain'))
+            session = smtplib.SMTP('smtp.gmail.com', 587)
+            session.starttls()
+            session.login(sender_address, sender_pass)
+            text = message.as_string()
+            session.sendmail(sender_address, receiver_address, text)
+            session.quit()
+            print('Mail Sent')
+        except:
+            print(" ! Failed to send email notification!  check your options file.")
+    if '-exit' in sys.argv:
+        raise SystemExit(101)
