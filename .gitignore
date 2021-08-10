@@ -10,3 +10,8 @@
 *.wav
 *.mkv
 **/.DS_Store
+.DS_Store
+kss6/.DS_Store
+kss6/footage/.DS_Store
+kss6/footage/input/.DS_Store
+kss6/footage/output/.DS_Store
