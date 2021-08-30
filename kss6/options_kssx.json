@@ -15,10 +15,11 @@
     "find_videos_with_formats": [".mp4", ".mkv", "webm"]
   },
   "processing_options": {
-    "selected_mode": "good_audio_presentation",
+    "selected_mode": "quiet",
     "modes": {
       "best": [1.2, 250, 4, 1.3, 720, 480, 10, "voice"],
       "good_audio_presentation": [1.1, 150, 4, 1.2, 720, 480, 10, "voice"],
+      "quiet": [1.3, 150, 4, 1.2, 720, 480, 10, "voice"],
       "realGood": [1.2, 125, 3, 1.3, 1920, 1080, 10, "voice"],
       "quickVoice": [0.8, 550, 2, 0.7, 1920, 1080, 10, "voice"],
       "quickVoice2": [0.93, 250, 2, 0.89, 720, 480, 10, "voice"],
