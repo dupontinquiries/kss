@@ -596,9 +596,7 @@ class kss:
                 stamps.append(f'{tab}concat=n={count}:v=1:a=1[out]')
                 command = f'ffmpeg -i \'{a}\' -filter_complex \'{";".join(stamps)}\' -map \'[out]\' \'{tmpName}\''
 
-                p = subprocess.Popen(command, shell=True)
-                p.communicate()
-                fileNames.append( f"file \'{tmpName}\'\n" )
+                
 
 
         f = open(outD.append(f"{folderName}_threading").append("list.txt").aPath(),"w+")
