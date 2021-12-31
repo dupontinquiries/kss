@@ -7,7 +7,7 @@ parser.add_argument("-o", help="output path")
 parser.add_argument("-r", help="scale-x:scale-y")
 args = parser.parse_args()
 
-im = Image.open(args.i)
+im = Image.open(args.i.replace('\_', ' '))
 
 a,b = args.r.split(":")
 
@@ -19,10 +19,5 @@ newsize = (int(im.size[0] * a), int(im.size[1] * b))
 n = im.resize(newsize)
 
 # n.show()
-
-import os
-f = "/".join(args.o.split("/")[:-1])
-if not os.path.exists(f):
-    os.mkdir(f)
 
 n.save(args.o, "JPEG") # JPEG2000
