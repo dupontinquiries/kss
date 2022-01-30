@@ -1,33 +1,19 @@
-# KSS: Kitchen Silence Splitter ![](kss_github_logo_v2.png)
+# KSS v7 ![](kss_github_logo_v2.png)
 
-The Kitchen Silence Splitter, or KSS, is a python program that trims videos based on their volume.
+KSS v7 coming soon… stay tuned!
 
-## Installation - coming soon!
+The Kitchen Silence Splitter, or KSS, is a python program that trims videos based on their volume level.
 
-Use [pip](https://pip.pypa.io/en/stable/) to install packages.
-
-```bash
-pip install [package_name]
-```
+__Note:__ This repository also contains many other scripts that are useful for power user file management.
 
 ## Usage
 
-### Preparing the Workspace
-
-Create a directory in the same folder as __kss2.py__ named __footage__, and add your video files to a folder named input.
-
-### Setting Up the Environment
-
-Ensure you have __ffmpeg-python__ and __moviepy__, as well as:
- - opencv-python
- - pydub
-
 ### Running the Program
 
-Find the most recent version (__kss3.py__) and run it.  Don't forget to check options.txt!
+Find the most recent version (__kss6.py__) and run it.  Don't forget to check options.txt!
 
 ```python
-python kss3.py
+python kss6.py
 ```
 
 The completed file will show up in the folder named __output__ by default.
@@ -38,38 +24,8 @@ Feel free to fork and make something awesome!
 ## License
 [GNU](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
+https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-# kCrawler: File Management
+## Similar Projects
 
-kCrawler is an automation tool for seamlessly compressing large numbers of videos.
-
-## Installation
-
-The installation for KSS should cover everything needed for kCrawler.
-
-## Usage
-
-### Preparing the Workspace
-
-Locate the directory that holds your input folder.  A new folder called __program_results__ will be created in this directory once the programs starts running.
-
-### Setting Up the Environment
-
-Ensure you have __ffmpeg__ installed (on your system, not through pip via ffmpeg-python) and check that it is __added it to your environment variables__.
-
-### Running the Program
-
-Run __kCrawler.py__ and paste the path to your folder when prompted.
-
-```python
-python kCrawler.py
-Path to the workspace => your/path/here
-```
-
-Videos will start appearing in the __program_results__ folder.
-
-## Contributing
-Feel free to fork and make something awesome!
-
-## License
-[GNU](https://www.gnu.org/licenses/gpl-3.0.en.html)
+Make sure to check out [reVos](https://github.com/dupontinquiries/reVos) if you are looking for KSS functionality in your browser.
