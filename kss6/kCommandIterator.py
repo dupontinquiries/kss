@@ -10,7 +10,7 @@ def iterate_threaded_helper(p, h, c, t):
     # if t != "*" and str(path.suffix.lower()) != t:
     #     return
     if t == "*" or str(path.suffix.lower()) == t:
-        a = c.replace("(f)", str(path)).replace("(fr)", str(path.stem)).replace("(fe)", str(path.suffix))
+        a = c.replace("(f)", str(path)).replace("(fr)", str(path.stem)).replace("(fe)", str(path.suffix)).replace("(fn)", str(path.stem).split("/")[-1])
         
         os.system(a)
 
@@ -29,7 +29,7 @@ def iterate_threaded(nthreads, p, c, t, i, addToPath=""):
         for h in folders:
             # print(f"navigating to subfolder {p.joinpath(h)}")
             hh = str(h).split("\\")[-1]
-            iterate_threaded(nthreads, p.joinpath(h), c.replace("(f)", f"{hh}\\(f)").replace("(fr)", f"{hh}\\(fr)").replace("(fe)", f"{hh}\\(fe)"), t, i)
+            iterate_threaded(nthreads, p.joinpath(h), c.replace("(f)", f"{hh}\\(f)").replace("(fr)", f"{hh}\\(fr)").replace("(fe)", f"{hh}\\(fe)").replace("(fn)", f"{hh}/(fn)"), t, i)
 
 
 def iterate(p, c, t, i, addToPath=""):
@@ -43,7 +43,7 @@ def iterate(p, c, t, i, addToPath=""):
         # print(p)
         if t != "*" and str(path.suffix.lower()) != t:
             continue
-        a = c.replace("(f)", str(path)).replace("(fr)", str(path.stem)).replace("(fe)", str(path.suffix))
+        a = c.replace("(f)", str(path)).replace("(fr)", str(path.stem)).replace("(fe)", str(path.suffix)).replace("(fn)", str(path.stem).split("/")[-1])
         # print(a)
         # exit()
         os.system(a)
@@ -54,7 +54,7 @@ def iterate(p, c, t, i, addToPath=""):
             # print(f"navigating to subfolder {p.joinpath(h)}")
             hh = str(h).split("\\")[-1]
             # c.replace("(f)", f"(f)")
-            iterate(p.joinpath(h), c.replace("(f)", f"{hh}/(f)").replace("(fr)", f"{hh}/(fr)").replace("(fe)", f"{hh}/(fe)"), t, i)
+            iterate(p.joinpath(h), c.replace("(f)", f"{hh}/(f)").replace("(fr)", f"{hh}/(fr)").replace("(fe)", f"{hh}/(fe)").replace("(fn)", f"{hh}/(fn)"), t, i)
 #        conversions = conversions | iterate(p.joinpath(h), c, t) # only works in python 3.9+
 #        conversions = {**conversions, **iterate(p.joinpath(h), c, t)}
 
