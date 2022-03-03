@@ -7,12 +7,17 @@ def iterate_threaded_helper(p, h, c, t):
     import os
     from pathlib import Path
     path = p.joinpath(h)
+    # print(path.stem)
+            # print( '/'.join(str(path).replace('\\', '/').split('/')[:-1]) )
+            # if not os.path.exists( '/'.join(str(path).replace('\\', '/').split('/')[:-1]) ):
+            #     print( '/'.join(str(path).replace('\\', '/').split('/')[:-1]) )
+            #     os.mkdir( '/'.join(str(path).replace('\\', '/').split('/')[:-1]) )
     # if t != '*' and str(path.suffix.lower()) != t:
     #     return
     if t == '*' or str(path.suffix.lower()) == t:
         a = c
         a = a.replace('\\', '/')
-        a = a.replace('(f)', str(path)).replace('(fr)', str(path.stem)).replace('(fe)', str(path.suffix)).replace('(fn)', str(path.stem).split('/')[-1])
+        a = a.replace('(f)', str(path)).replace('(fr)', str(path.stem)).replace('(fe)', str(path.suffix)).replace('(fn)', str(path.stem))
         os.system(a)
 
 def iterate_threaded(nthreads, p, c, t, i, addToPath=''):
@@ -31,7 +36,7 @@ def iterate_threaded(nthreads, p, c, t, i, addToPath=''):
         for h in folders:
             # print(f'navigating to subfolder {p.joinpath(h)}')
             hh = str(h).split('/')[-1]
-            iterate_threaded(nthreads, p.joinpath(h), c.replace('(f)', f'{hh}/(f)').replace('(fr)', f'{hh}/(fr)').replace('(fe)', f'{hh}/(fe)').replace('(fn)', f'{hh}/(fn)'), t, i)
+            iterate_threaded(nthreads, p.joinpath(h), c.replace('(f)', f'{hh}/(f)').replace('(fr)', f'{hh}/(fr)').replace('(fe)', f'{hh}/(fe)').replace('(fn)', f'(fn)'), t, i)
 
 
 def iterate(p, c, t, i, addToPath=''):
