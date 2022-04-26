@@ -1,4 +1,6 @@
 /footage
+*/footage
+**/footage
 /kss/footage
 /kss/kav/footage
 /kss/2nd instance kss3/footage
@@ -11,12 +13,6 @@
 *.mkv
 **/.DS_Store
 .DS_Store
-kss6/.DS_Store
-kss6/footage/.DS_Store
-kss6/footage/input/.DS_Store
-kss6/footage/output/.DS_Store
-kss6/footage/output/.DS_Store
-kss6/footage/output/.DS_Store
 .DS_Store
-kss6/.DS_Store
-kss6/footage/.DS_Store
+*.DS_Store
+kss6/footage/

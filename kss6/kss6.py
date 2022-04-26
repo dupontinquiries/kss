@@ -316,6 +316,13 @@ class kss:
                     .filter('afftdn', nr=4, nt="w", om="o")
                     .output(nameAP).run(overwrite_output=True)
                 )
+            if DEFAULT_TREATMENT == 'mc-supercut':
+                (
+                ffmpeg.input(v.aPath())
+                    .filter('lowpass', f=16000).filter('highpass', f=45)
+                    .filter('afftdn', nr=1, nt="w", om="o")
+                    .output(nameAP).run(overwrite_output=True)
+                )
         return v
 
     def testHello(self):
@@ -600,17 +607,20 @@ class kss:
                 fileNames.append( f"file \'{tmpName}\'\n" )
 
 
-        f = open(outD.append(f"{folderName}_threading").append("list.txt").aPath(),"w+")
-        f.write( ''.join(fileNames) )
+        with open(outD.append(f"{folderName}_threading").append("list.txt").aPath(),"w+") as f:
+            f.write( ''.join(fileNames) )
         #for line in fileNames:
         #    f.write( line )
-        f.close()
+        # f.close()
 
-        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{a[:-4]} -- {folderName} -- output.mkv' + "\"" #randomString(5)
+        # command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{a[:-4]} -- {folderName} -- output.mkv' + "\"" #randomString(5)
+        # mac studio hotfix
+        tmp_filename = a[:-4].split("/")[-1]
+        command = "ffmpeg -f concat -safe 0 -i \"" + "list.txt" + "\" -c copy \"" + "../" + f'{tmp_filename} -- {folderName} -- output.mkv' + "\"" #randomString(5)
         p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath(), shell=True)
         p.communicate()
 
-        if True:
+        if False:
             outD.append(f"{folderName}_threading").delete()
             #for i, j, path in sorted(returnList):
             #    path.delete()

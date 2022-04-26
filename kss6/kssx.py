@@ -611,7 +611,7 @@ class kss:
         p = subprocess.Popen(command, cwd=outD.append(f"{folderName}_threading").aPath(), shell=True)
         p.communicate()
 
-        if True:
+        if False:
             outD.append(f"{folderName}_threading").delete()
             #for i, j, path in sorted(returnList):
             #    path.delete()
